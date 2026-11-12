@@ -272,8 +272,10 @@ for a refund made by hand in the PayPal dashboard).
 These are fixed by the foundation commit; module code relies on them.
 
 - Schema: the whole schema is `V1__schema.sql`; `V2__seed.sql` loads accounts, the business
-  date and three demo customers. A module that needs a column adds a migration only in its own
-  version range (cash-out: `V30__cashout_leg_claim.sql`; `investigate`: V50 to V59). JSON columns (`breaks.evidence`,
+  date and three demo customers. `V3__demo_seed.sql` gives those customers fictional names and a few
+  messages for the running demo; tests reload only V2, so they see neutral names and no messages.
+  A module that needs a column adds a migration only in its own version range (cash-out:
+  `V30__cashout_leg_claim.sql`; `investigate`: V50 to V59). JSON columns (`breaks.evidence`,
   `proposals.ai_output`, `proposals.draft`, `day_closes.summary`, `webhook_events.payload`)
   are `text` holding JSON.
 - The journal is append-only in the database too: UPDATE and DELETE on `journal_entries` and

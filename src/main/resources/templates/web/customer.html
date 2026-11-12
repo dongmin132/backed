@@ -29,6 +29,11 @@
             </label>
             <button type="submit">Cash out</button>
         </form>
+        <form th:if="${balanceCents > 0}" th:action="@{/c/{token}/cashout(token=${customer.token})}" method="post"
+              class="inline">
+            <input type="hidden" name="amount" value="all">
+            <button type="submit" class="link">Cash out everything (<span th:text="${@fmt.money(balanceCents)}">$0.00</span>)</button>
+        </form>
         <p class="muted small">Refunded to the card you paid with, newest top-up first.</p>
     </section>
 

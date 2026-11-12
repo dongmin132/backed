@@ -19,13 +19,17 @@
         <a class="brand" th:href="@{/}">Backed</a>
         <nav class="nav" aria-label="Main">
             <a th:href="@{/}" th:classappend="${currentPath == '/'} ? 'active'">Dashboard</a>
-            <a th:href="@{/pos}" th:classappend="${#strings.startsWith(currentPath, '/pos')} ? 'active'">Counter</a>
-            <a th:href="@{/topups}" th:classappend="${#strings.startsWith(currentPath, '/topups')} ? 'active'">Top-ups</a>
-            <a th:href="@{/cashouts}" th:classappend="${#strings.startsWith(currentPath, '/cashouts')} ? 'active'">Cash-outs</a>
-            <a th:href="@{/close}" th:classappend="${#strings.startsWith(currentPath, '/close')} ? 'active'">Close</a>
-            <a th:href="@{/proposals}" th:classappend="${#strings.startsWith(currentPath, '/proposals')} ? 'active'">Proposals</a>
+            <th:block th:with="clerk=${#strings.contains(currentRoles, 'CLERK')},
+                               maker=${#strings.contains(currentRoles, 'MAKER')},
+                               checker=${#strings.contains(currentRoles, 'CHECKER')}">
+            <a th:if="${clerk or maker}" th:href="@{/pos}" th:classappend="${#strings.startsWith(currentPath, '/pos')} ? 'active'">Counter</a>
+            <a th:if="${maker or checker}" th:href="@{/topups}" th:classappend="${#strings.startsWith(currentPath, '/topups')} ? 'active'">Top-ups</a>
+            <a th:if="${maker or checker}" th:href="@{/cashouts}" th:classappend="${#strings.startsWith(currentPath, '/cashouts')} ? 'active'">Cash-outs</a>
+            <a th:if="${maker or checker}" th:href="@{/close}" th:classappend="${#strings.startsWith(currentPath, '/close')} ? 'active'">Close</a>
+            <a th:if="${maker or checker}" th:href="@{/proposals}" th:classappend="${#strings.startsWith(currentPath, '/proposals')} ? 'active'">Proposals</a>
             <a th:href="@{/ledger}" th:classappend="${#strings.startsWith(currentPath, '/ledger')} ? 'active'">Ledger</a>
-            <a th:href="@{/admin/faults}" th:classappend="${#strings.startsWith(currentPath, '/admin')} ? 'active'">Faults</a>
+            <a th:if="${maker}" th:href="@{/admin/faults}" th:classappend="${#strings.startsWith(currentPath, '/admin')} ? 'active'">Faults</a>
+            </th:block>
         </nav>
         <div class="session">
             <span class="meta">Business date <strong th:text="${@fmt.date(businessDate)}">2026-01-01</strong></span>
