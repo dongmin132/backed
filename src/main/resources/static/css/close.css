@@ -1,0 +1,55 @@
+/* Day close page. Uses the tokens from app.css. */
+
+.close-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space);
+  margin-bottom: var(--space);
+}
+.close-head h1 { margin-bottom: 4px; }
+.close-sub { margin: 0; }
+.close-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.close-empty { margin: 0; }
+
+.close-status { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: var(--space); }
+.close-badge { font-size: 0.9rem; padding: 4px 12px; }
+
+.checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space);
+  margin-bottom: calc(var(--space) * 1.5);
+}
+.check {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space) calc(var(--space) * 1.25);
+}
+.check.pass { border-top-color: var(--ok-text); }
+.check.fail { border-top-color: var(--bad-text); }
+.check-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: var(--space); }
+.check-head h2 { margin: 0; font-size: 1rem; }
+
+.figures { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space); }
+.figure { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.figure-label { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.figure-value { font-size: 1.6rem; font-weight: 680; text-align: left !important; }
+.check.pass .figure-value { color: var(--ok-text); }
+.check.fail .figure-value { color: var(--bad-text); }
+.check-note { margin: var(--space) 0 0; font-size: 0.88rem; color: var(--muted); }
+.check.fail .check-note { color: var(--bad-text); }
+
+.findings { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; }
+
+.table-wrap { overflow-x: auto; }
+.break-note { max-width: 320px; white-space: pre-wrap; }
+td.unexplained { color: var(--bad-text); font-weight: 600; }
+.close-foot { margin: var(--space) 0 0; }
+
+@media (max-width: 640px) {
+  .figure-value { font-size: 1.3rem; }
+}

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Day close', ~{::main})}">
+<body>
+<main class="container">
+    <link rel="stylesheet" th:href="@{/css/close.css}">
+
+    <div class="close-head">
+        <div>
+            <h1>Day close</h1>
+            <p class="muted close-sub">
+                Business date <strong th:text="${@fmt.date(businessDate)}">2026-01-01</strong>.
+                The close reads every order from PayPal and compares it with the ledger.
+            </p>
+        </div>
+        <div class="close-actions">
+            <form th:action="@{/close/run}" method="post" class="inline">
+                <button type="submit" class="primary">Run close</button>
+            </form>
+            <form th:if="${canAdvance}" th:action="@{/close/advance}" method="post" class="inline">
+                <button type="submit">Advance to next business day</button>
+            </form>
+        </div>
+    </div>
+
+    <div th:replace="~{layout/flash :: flash}"></div>
+
+    <section class="card" th:if="${latest == null}">
+        <p class="muted close-empty">No close has run for this business date yet.</p>
+    </section>
+
+    <th:block th:if="${latest != null}">
+        <section class="close-status">
+            <span class="badge close-badge" th:classappend="${@fmt.tone(latest.status)}"
+                  th:text="${@fmt.label(latest.status)}">Closed</span>
+            <span class="muted">
+                Run <span th:text="${'#' + latest.id}">#1</span>
+                by <strong th:text="${latest.runBy}">maker</strong>
+                at <span th:text="${@fmt.time(latest.runAt)}">time</span>
+                <th:block th:if="${summary != null}">
+                    &middot; <span th:text="${summary.ordersChecked}">0</span> PayPal orders read
+                </th:block>
+            </span>
+        </section>
+
+        <p class="flash error" role="alert" th:if="${summary != null and summary.paypalError != null}"
+           th:text="${'PayPal could not be read, so nothing was compared: ' + summary.paypalError}">PayPal error</p>
+
+        <section class="checks" th:if="${summary != null and !#lists.isEmpty(summary.checks)}">
+            <article class="check" th:each="c : ${summary.checks}" th:classappend="${c.pass} ? 'pass' : 'fail'">
+                <header class="check-head">
+                    <h2 th:text="${c.title}">Check</h2>
+                    <span class="badge" th:classappend="${c.pass} ? 'ok' : 'bad'" th:text="${c.pass} ? 'Pass' : 'Fail'">Pass</span>
+                </header>
+                <div class="figures">
+                    <div class="figure">
+                        <span class="figure-label" th:text="${c.expectedLabel}">Expected</span>
+                        <span class="figure-value num" th:text="${c.expectedCents == null} ? 'Not read' : ${@fmt.money(c.expectedCents)}">$0.00</span>
+                    </div>
+                    <div class="figure">
+                        <span class="figure-label" th:text="${c.actualLabel}">Actual</span>
+                        <span class="figure-value num" th:text="${@fmt.money(c.actualCents)}">$0.00</span>
+                    </div>
+                </div>
+                <p class="check-note" th:text="${c.explanation}">Explanation</p>
+            </article>
+        </section>
+
+        <section class="card" th:if="${summary != null and (!#lists.isEmpty(summary.notes) or !#lists.isEmpty(summary.steps))}">
+            <h2>Findings</h2>
+            <ul class="findings">
+                <li th:each="s : ${summary.steps}">
+                    <span class="badge" th:classappend="${s.error == null} ? 'plain' : 'bad'" th:text="${s.name}">step</span>
+                    <span th:if="${s.error == null}" th:text="${s.processed + ' item(s) handled before the comparison'}"></span>
+                    <span th:if="${s.error != null}" th:text="${s.error}"></span>
+                </li>
+                <li th:each="n : ${summary.notes}" th:text="${n}">note</li>
+            </ul>
+        </section>
+    </th:block>
+
+    <section class="card">
+        <h2>Open breaks <span class="muted small" th:text="${#lists.size(openBreaks) + ' open'}">0 open</span></h2>
+        <p class="muted" th:if="${#lists.isEmpty(openBreaks)}">PayPal shows nothing the ledger cannot explain.</p>
+        <div class="table-wrap" th:unless="${#lists.isEmpty(openBreaks)}">
+            <table class="table">
+                <thead>
+                <tr>
+                    <th>Break</th><th>Customer</th><th class="num">Amount</th><th>PayPal reference</th>
+                    <th>Note from PayPal</th><th>Status</th><th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="b : ${openBreaks}">
+                    <td>
+                        <span class="badge bad" th:text="${@fmt.label(b.kind)}">Unbooked refund</span>
+                        <div class="muted small" th:text="${'#' + b.id + ' found ' + @fmt.time(b.createdAt)}">#1</div>
+                    </td>
+                    <td th:text="${b.customerName != null} ? ${b.customerName} : 'Unknown'">Demo Customer A</td>
+                    <td class="num strong" th:text="${@fmt.money(b.amountCents)}">$0.00</td>
+                    <td><code th:text="${b.paypalRef}">REF</code></td>
+                    <td class="break-note" th:text="${b.note != null} ? ${b.note} : ''"></td>
+                    <td><span class="badge" th:classappend="${@fmt.tone(b.status)}" th:text="${@fmt.label(b.status)}">Open</span></td>
+                    <td>
+                        <form th:action="@{/breaks/{id}/investigate(id=${b.id})}" method="post" class="inline">
+                            <button type="submit" class="primary">Investigate</button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>History <span class="muted small">last 20 runs</span></h2>
+        <p class="muted" th:if="${#lists.isEmpty(history)}">No runs yet.</p>
+        <div class="table-wrap" th:unless="${#lists.isEmpty(history)}">
+            <table class="table compact">
+                <thead>
+                <tr>
+                    <th>Run</th><th>Business date</th><th>Status</th><th class="num">Owed</th>
+                    <th class="num">Ledger cash</th><th class="num">PayPal cash</th><th class="num">Unexplained</th>
+                    <th>By</th><th>At</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="r : ${history}">
+                    <td th:text="${'#' + r.id}">#1</td>
+                    <td th:text="${@fmt.date(r.businessDate)}">2026-01-01</td>
+                    <td><span class="badge" th:classappend="${@fmt.tone(r.status)}" th:text="${@fmt.label(r.status)}">Closed</span></td>
+                    <td class="num" th:text="${@fmt.money(r.owedCents)}">$0.00</td>
+                    <td class="num" th:text="${@fmt.money(r.ledgerPaypalCashCents)}">$0.00</td>
+                    <td class="num" th:text="${@fmt.money(r.paypalDerivedCashCents)}">$0.00</td>
+                    <td class="num" th:classappend="${r.unexplainedCents != null and r.unexplainedCents != 0} ? 'unexplained'"
+                        th:text="${@fmt.money(r.unexplainedCents)}">$0.00</td>
+                    <td th:text="${r.runBy}">maker</td>
+                    <td class="muted" th:text="${@fmt.time(r.runAt)}">time</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="muted small close-foot"><a th:href="@{/close/webhooks}">PayPal webhook events received</a></p>
+    </section>
+</main>
+</body>
+</html>
