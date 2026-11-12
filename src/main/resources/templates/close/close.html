@@ -1,409 +1,422 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Day close', ~{::main})}">
 <body>
-<!--/* Day close. Each block below is its own th:fragment so the screen structure can be rearranged later:
-       dayState (headline, or the empty state before any run), dayClosed (the closed day), gap (books to
-       PayPal waterfall, or the matched picture), checks, findings, breaks (with thinking inside each item),
-       history. They read the model the controller sets: latest, summary, openBreaks, pendingProposals,
-       history, isMaker, canAdvance, aiConfigured. */-->
-<main class="container close-page">
+<!--/* The day report: one document read from top to bottom. Each block is its own th:fragment:
+       dayState (date line, the result as one sentence, what to do next), gap (books to PayPal waterfall, or the
+       matched picture), breaks (one section per break, with its proposal in place and the thinking state while
+       the investigator reads), dayClosed (the closed day), then the supporting material collapsed at the end:
+       checks, findings, history. They read the model the controller sets: latest, summary, openBreaks,
+       pendingProposals, proposalPages (each open break's newest proposal as a ProposalPage), report (the
+       sentences), history, isMaker, canAdvance, aiConfigured.
+       Hooks for motion: .report-amount[data-unexplained-cents], .wf-step[data-break-id], .report-break[data-break-id],
+       #day-closed. The one-time motions (the gap resolving, the day closing) are in /js/report-motion.js. */-->
+<main class="container close-page report-page">
     <link rel="stylesheet" th:href="@{/css/close.css}">
 
-    <header class="page-header close-header">
-        <div>
-            <h1>Day close</h1>
-            <p class="page-context">
-                Business date <strong th:text="${@fmt.date(businessDate)}">2026-01-01</strong>.
-                The close reads every order from PayPal and compares it with the ledger.
-            </p>
-        </div>
-        <div class="page-actions" th:if="${isMaker}">
-            <form th:action="@{/close/run}" method="post" class="inline">
-                <button type="submit" th:class="${canAdvance} ? 'secondary' : 'primary'">Run close</button>
-            </form>
-        </div>
-    </header>
+    <div class="report-wrap" th:data-business-date="${day}"
+         th:with="day=${businessDate},
+                  hasGap=${latest != null and summary != null and latest.status.name() != 'CLOSED'
+                           and latest.ledgerPaypalCashCents != null and latest.paypalDerivedCashCents != null},
+                  gapAbs=${latest == null or latest.unexplainedCents == null ? null
+                           : (latest.unexplainedCents < 0 ? -latest.unexplainedCents : latest.unexplainedCents)},
+                  showBreaks=${!#lists.isEmpty(openBreaks) or (latest != null and latest.status.name() != 'CLOSED')},
+                  myTurn=${proposalPages != null and !#maps.isEmpty(proposalPages.?[value.canDecide()])}">
 
-    <div th:replace="~{layout/flash :: flash}"></div>
+        <!--/* A thin table of contents on wide screens; the current section is lit as you scroll. */-->
+        <nav class="report-toc" aria-label="On this page" th:if="${latest != null or !#lists.isEmpty(openBreaks)}">
+            <ol>
+                <li><a href="#result"><span class="toc-dot" aria-hidden="true"></span>Result</a></li>
+                <li th:if="${hasGap}"><a href="#gap"><span class="toc-dot" aria-hidden="true"></span><span
+                        th:text="${gapAbs == null or gapAbs == 0 ? 'Books and PayPal' : @fmt.money(gapAbs) + ' gap'}">$14.00 gap</span></a></li>
+                <li th:if="${showBreaks and !#lists.isEmpty(openBreaks)}"><a href="#breaks"><span class="toc-dot" aria-hidden="true"></span><span
+                        th:text="${report == null or #strings.isEmpty(report.breaksLabel) ? @fmt.count(#lists.size(openBreaks), 'open item', 'open items') : report.breaksLabel}">Two refunds</span></a></li>
+                <li th:if="${latest != null}"><a href="#signoff"><span class="toc-dot" aria-hidden="true"></span>Sign-off<span
+                        class="toc-chip" th:if="${myTurn}">Your turn</span></a></li>
+            </ol>
+        </nav>
 
-    <!--/* (1) The state of the day: a short headline, or the empty state before the first run. */-->
-    <section class="day-state" th:fragment="dayState" th:if="${latest == null or latest.status.name() != 'CLOSED'}">
-        <div class="card empty-close" th:if="${latest == null}">
-            <div class="empty-copy">
-                <h2 class="empty-title">Not closed yet</h2>
-                <p class="empty-text">No close has run for this business date yet.</p>
-                <p class="empty-text muted">A run reads every PayPal order, compares it with the books to the cent,
-                    and lists anything PayPal shows that the books cannot explain.</p>
-            </div>
-            <div class="match-card empty-match" aria-hidden="true">
-                <div class="match-row"><span>Books</span><span class="match-bar"></span></div>
-                <div class="match-row"><span>PayPal</span><span class="match-bar match-bar-ghost"></span></div>
-                <span class="empty-match-note">Compared when the close runs</span>
-            </div>
-        </div>
+        <article class="report" aria-labelledby="report-title">
 
-        <th:block th:if="${latest != null}"
-                  th:with="gapCents=${latest.unexplainedCents},
-                           absGap=${latest.unexplainedCents == null ? null : (latest.unexplainedCents < 0 ? -latest.unexplainedCents : latest.unexplainedCents)}">
-            <div class="card panel-strong day-headline">
-                <div class="day-headline-top">
-                    <span class="badge badge-lg close-badge" th:classappend="${@fmt.tone(latest.status)}"
-                          th:text="${@fmt.label(latest.status)}">Broken</span>
-                    <span class="day-headline-meta">
-                        Run <span th:text="${'#' + latest.id}">#1</span>
-                        by <strong th:text="${@fmt.actor(latest.runBy)}">maker</strong>
-                        at <span th:text="${@fmt.time(latest.runAt)}">time</span><th:block th:if="${summary != null}">,
-                            <span th:text="${summary.ordersChecked}">0</span> PayPal orders read</th:block>
-                    </span>
+            <!--/* (1) The date line and the result in one sentence, then what to do next. */-->
+            <header class="report-head day-state" id="result" th:fragment="dayState">
+                <div class="report-bar">
+                    <div class="report-title-row">
+                        <h1 id="report-title" class="report-date"
+                            th:text="${@fmt.label(day.dayOfWeek) + ' ' + day.dayOfMonth + ' ' + @fmt.label(day.month) + ' day report'}">Friday 13 November day report</h1>
+                        <span class="badge report-state" th:if="${latest == null}">Not closed yet</span>
+                        <span class="badge report-state" th:if="${latest != null}" th:classappend="${@fmt.tone(latest.status)}"
+                              th:text="${@fmt.label(latest.status)}">Broken</span>
+                    </div>
+                    <div class="report-run">
+                        <span class="report-read" th:if="${latest != null}">PayPal read
+                            <span th:text="${@fmt.time(latest.runAt)}">10:28</span><th:block th:if="${summary != null}">,
+                            <span th:text="${@fmt.count(summary.ordersChecked, 'order', 'orders')}">3 orders</span></th:block></span>
+                        <form th:if="${isMaker}" th:action="@{/close/run}" method="post" class="inline">
+                            <button type="submit" class="btn-sm" th:classappend="${latest == null} ? 'primary' : 'secondary'">Run close</button>
+                        </form>
+                    </div>
                 </div>
-                <h2 class="day-headline-title">
-                    <th:block th:if="${latest.status.name() == 'RUNNING'}">The close is still running</th:block>
-                    <th:block th:if="${latest.status.name() != 'RUNNING' and gapCents == null}">PayPal was not compared, so the day stays open</th:block>
-                    <th:block th:if="${latest.status.name() != 'RUNNING' and gapCents != null and gapCents > 0}">PayPal holds
-                        <span class="day-headline-money" th:text="${@fmt.money(absGap)}">$14.00</span> less than your books say</th:block>
-                    <th:block th:if="${latest.status.name() != 'RUNNING' and gapCents != null and gapCents < 0}">PayPal holds
-                        <span class="day-headline-money" th:text="${@fmt.money(absGap)}">$14.00</span> more than your books say</th:block>
-                    <th:block th:if="${latest.status.name() != 'RUNNING' and gapCents != null and gapCents == 0}">Cash matches PayPal, but the day is not closed yet</th:block>
-                </h2>
-                <p class="day-headline-sub" th:if="${summary != null}">
-                    <span th:text="${@fmt.count(#lists.size(openBreaks), 'break', 'breaks')}">2 breaks</span> to explain<th:block
-                        th:if="${summary.inDoubtTopups + summary.inDoubtLegs > 0}">, <span
-                        th:text="${@fmt.count(summary.inDoubtTopups + summary.inDoubtLegs, 'item', 'items')}">1 item</span>
-                        still waiting for PayPal</th:block>.
-                    Nothing is booked until a checker approves.
+
+                <p class="report-lede" th:if="${report == null}"
+                   th:text="${latest == null ? 'Today has not been checked against PayPal yet.'
+                            : (latest.status.name() == 'CLOSED' ? 'Your books and PayPal agree to the cent.'
+                            : (gapAbs == null ? 'PayPal could not be read, so nothing was compared.'
+                            : 'Your books and PayPal are ' + @fmt.money(gapAbs) + ' apart.'))}">Your books and PayPal are $14.00 apart.</p>
+                <p class="report-next" th:if="${report == null and latest == null}">No close has run for this business date yet.</p>
+                <p class="report-lede" th:if="${report != null}"><th:block th:text="${report.lead}">Two refunds missing from your books leave them </th:block><span
+                        class="report-amount" th:if="${report.amount != null}" th:text="${report.amount}"
+                        th:classappend="${latest != null and latest.status.name() != 'CLOSED'} ? 'is-gap'"
+                        th:data-unexplained-cents="${latest != null and latest.status.name() != 'CLOSED' ? gapAbs : null}">$14.00</span><th:block
+                        th:if="${report.tail != null}" th:text="${report.tail}"> above PayPal.</th:block></p>
+                <p class="report-next" th:if="${report != null and (report.nextLead != null or report.nextLink != null)}"><th:block
+                        th:text="${report.nextLead}">Next: </th:block><a th:if="${report.nextLink != null}" th:href="${report.nextHref}"
+                        th:text="${report.nextLink}">approve Maya's $4.00</a><th:block th:if="${report.nextTail != null}"
+                        th:text="${report.nextTail}">. One more below.</th:block></p>
+                <p class="report-by muted small" th:if="${latest != null}">
+                    Run <span th:text="${'#' + latest.id}">#1</span> by <span th:text="${@fmt.actor(latest.runBy)}">maker</span>.<th:block
+                        th:if="${latest.status.name() != 'CLOSED'}"> Nothing is booked until a checker approves.</th:block>
                 </p>
-            </div>
 
-            <p class="flash error" role="alert" th:if="${summary != null and summary.paypalError != null}"
-               th:text="${'PayPal could not be read, so nothing was compared: ' + summary.paypalError}">PayPal error</p>
-        </th:block>
-    </section>
+                <p class="flash error" role="alert" th:if="${summary != null and summary.paypalError != null}"
+                   th:text="${'PayPal could not be read, so nothing was compared: ' + summary.paypalError}">PayPal error</p>
+            </header>
 
-    <!--/* (5) The closed day. */-->
-    <section class="card party" th:fragment="dayClosed" th:if="${latest != null and latest.status.name() == 'CLOSED'}"
-             th:with="day=${latest.businessDate}">
-        <div class="party-rays" aria-hidden="true"></div>
-        <div class="party-confetti" aria-hidden="true">
-            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
-        </div>
-        <div class="party-seal" aria-hidden="true">
-            <span><svg viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7"/></svg></span>
-        </div>
-        <span class="party-date"
-              th:text="${@fmt.label(day.dayOfWeek) + ' ' + day.dayOfMonth + ' ' + @fmt.label(day.month)}">Friday 13 November</span>
-        <h2 class="party-title">Closed, to the cent</h2>
-        <p class="party-text">
-            Books and PayPal agree at <strong th:text="${@fmt.money(latest.paypalDerivedCashCents)}">$81.93</strong>,
-            and customers are owed <strong th:text="${@fmt.money(latest.owedCents)}">$53.00</strong>. Nothing is unexplained.
-        </p>
-        <ul class="party-chips" th:if="${summary != null and !#lists.isEmpty(summary.checks)}">
-            <li th:each="c : ${summary.checks}">
-                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg><span th:text="${c.title}">Every entry balances</span>
-            </li>
-        </ul>
-        <p class="party-meta">
-            Run <span th:text="${'#' + latest.id}">#1</span>
-            by <strong th:text="${@fmt.actor(latest.runBy)}">maker</strong>
-            at <span th:text="${@fmt.time(latest.runAt)}">time</span><th:block th:if="${summary != null}">,
-                <span th:text="${summary.ordersChecked}">0</span> PayPal orders read</th:block>
-        </p>
-        <div class="party-actions">
-            <a class="btn" th:href="@{/ledger}">View the day's ledger</a>
-            <form th:if="${isMaker and canAdvance}" th:action="@{/close/advance}" method="post" class="inline">
-                <button type="submit" class="primary">Advance to next business day</button>
-            </form>
-        </div>
-    </section>
+            <div th:replace="~{layout/flash :: flash}"></div>
 
-    <!--/* (2) The gap between the books and PayPal: a waterfall from the book figure, one step per break, landing on
-           the PayPal figure. With no gap it shows the matched picture instead. */-->
-    <section class="card gap" th:fragment="gap"
-             th:if="${latest != null and summary != null and latest.status.name() != 'CLOSED'
-                     and latest.ledgerPaypalCashCents != null and latest.paypalDerivedCashCents != null}"
-             th:with="book=${latest.ledgerPaypalCashCents}, pp=${latest.paypalDerivedCashCents},
-                      stepSum=${#lists.isEmpty(summary.breaks) ? 0L
-                               : #aggregates.sum(summary.breaks.![kind == 'UNBOOKED_REFUND' ? -amountCents : amountCents]).longValue()},
-                      rest=${latest.paypalDerivedCashCents - latest.ledgerPaypalCashCents - stepSum}">
+            <!--/* (2) Where the gap comes from: a waterfall from the books, one step per break, landing on PayPal. */-->
+            <section class="report-section gap" id="gap" th:fragment="gap" th:if="${hasGap}"
+                     th:with="book=${latest.ledgerPaypalCashCents}, pp=${latest.paypalDerivedCashCents},
+                              stepSum=${#lists.isEmpty(summary.breaks) ? 0L
+                                       : #aggregates.sum(summary.breaks.![kind == 'UNBOOKED_REFUND' ? -amountCents : amountCents]).longValue()},
+                              rest=${latest.paypalDerivedCashCents - latest.ledgerPaypalCashCents - stepSum}">
 
-        <th:block th:if="${book == pp}">
-            <div class="panel-head">
-                <h2>Books and PayPal agree</h2>
-                <span class="muted">PayPal cash, business date <th:block th:text="${@fmt.date(latest.businessDate)}">2026-01-01</th:block></span>
-            </div>
-            <div class="match-card gap-match">
-                <div class="match-row"><span>Books</span><span class="match-bar"></span><strong class="num" th:text="${@fmt.money(book)}">$81.93</strong></div>
-                <div class="match-row"><span>PayPal</span><span class="match-bar"></span><strong class="num" th:text="${@fmt.money(pp)}">$81.93</strong></div>
-                <span class="match-ok"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>Same to the cent</span>
-            </div>
-        </th:block>
+                <th:block th:if="${book == pp}">
+                    <div class="section-head">
+                        <h2>Your books and PayPal agree</h2>
+                        <span class="section-note">PayPal cash, to the cent</span>
+                    </div>
+                    <div class="match-card gap-match">
+                        <div class="match-row"><span>Your books</span><span class="match-bar"></span><strong class="num" th:text="${@fmt.money(book)}">$81.93</strong></div>
+                        <div class="match-row"><span>PayPal</span><span class="match-bar"></span><strong class="num" th:text="${@fmt.money(pp)}">$81.93</strong></div>
+                        <span class="match-ok"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>Same to the cent</span>
+                    </div>
+                </th:block>
 
-        <th:block th:if="${book != pp}"
-                  th:with="stepCount=${#lists.size(summary.breaks) + (rest != 0 ? 1 : 0)}">
-            <div class="gap-head">
-                <div class="gap-title">
-                    <span class="gap-kicker">PayPal cash, business date <th:block th:text="${@fmt.date(latest.businessDate)}">2026-01-01</th:block></span>
-                    <h2 th:text="${'From your books to PayPal in ' + @fmt.count(stepCount, 'step', 'steps')}">From your books to PayPal in 2 steps</h2>
+                <th:block th:if="${book != pp}"
+                          th:with="stepCount=${#lists.size(summary.breaks) + (rest != 0 ? 1 : 0)}">
+                    <div class="section-head">
+                        <h2>How the <span class="gap-amount" th:text="${@fmt.money(book > pp ? book - pp : pp - book)}">$14.00</span> gap adds up</h2>
+                        <span class="section-note">Amber steps are missing from your books</span>
+                    </div>
+
+                    <div class="wf-scroll">
+                        <div class="wf" th:attr="data-book=${book},data-paypal=${pp}"
+                             th:style="${'--cols: ' + (stepCount + 2)}">
+                            <div class="wf-grid" aria-hidden="true"></div>
+                            <ol class="wf-cols">
+                                <li class="wf-col wf-total" th:attr="data-value=${book}">
+                                    <div class="wf-plot">
+                                        <span class="wf-bar"></span>
+                                        <span class="wf-amount" th:text="${@fmt.money(book)}">$95.93</span>
+                                    </div>
+                                    <div class="wf-label"><span class="wf-name">Your books</span><span class="wf-sub">what you wrote down</span></div>
+                                </li>
+                                <li class="wf-col wf-step" th:each="bl : ${summary.breaks}"
+                                    th:with="refund=${bl.kind == 'UNBOOKED_REFUND'},
+                                             who=${openBreaks.^[id == __${bl.id}__]},
+                                             first=${who != null and who.customerName != null ? #strings.arraySplit(who.customerName, ' ')[0] : null}"
+                                    th:attr="data-delta=${refund ? -bl.amountCents : bl.amountCents},data-break-id=${bl.id}">
+                                    <div class="wf-plot">
+                                        <span class="wf-link"></span>
+                                        <span class="wf-bar"></span>
+                                        <span class="wf-amount" th:text="${(refund ? '−' : '+') + @fmt.money(bl.amountCents)}">&minus;$10.00</span>
+                                    </div>
+                                    <a class="wf-label" th:href="${'#break-' + bl.id}">
+                                        <span class="wf-name"
+                                              th:text="${first != null ? first + '’s ' + (refund ? 'refund' : 'payment') : (refund ? 'A refund' : 'A payment')}">Daniel's refund</span>
+                                        <span class="wf-sub">not in your books</span>
+                                    </a>
+                                </li>
+                                <li class="wf-col wf-step wf-rest" th:if="${rest != 0}" th:attr="data-delta=${rest}">
+                                    <div class="wf-plot">
+                                        <span class="wf-link"></span>
+                                        <span class="wf-bar"></span>
+                                        <span class="wf-amount" th:text="${(rest < 0 ? '−' : '+') + @fmt.money(rest < 0 ? -rest : rest)}">&minus;$0.30</span>
+                                    </div>
+                                    <div class="wf-label"><span class="wf-name">Not matched</span><span class="wf-sub">to anything yet</span></div>
+                                </li>
+                                <li class="wf-col wf-total wf-end" th:attr="data-value=${pp}">
+                                    <div class="wf-plot">
+                                        <span class="wf-link"></span>
+                                        <span class="wf-bar"></span>
+                                        <span class="wf-amount" th:text="${@fmt.money(pp)}">$81.93</span>
+                                    </div>
+                                    <div class="wf-label"><span class="wf-name">PayPal</span><span class="wf-sub">what is really there</span></div>
+                                </li>
+                            </ol>
+                        </div>
+                    </div>
+                    <p class="wf-legend">The scale does not start at zero, so small steps stay visible.</p>
+                </th:block>
+            </section>
+
+            <!--/* (3) One section per break: who, how much, what PayPal and the customer say, then the proposal in
+                   place (judgement, before and after, checks, sign-off) or the Investigate action and, while it is
+                   in flight, the thinking state. */-->
+            <section class="report-breaks" id="breaks" th:fragment="breaks" th:if="${showBreaks}" aria-labelledby="breaks-title">
+                <h2 class="visually-hidden" id="breaks-title"
+                    th:text="${report == null or #strings.isEmpty(report.breaksLabel) ? 'Open items' : report.breaksLabel}">Two refunds</h2>
+                <div class="breaks-clear" th:if="${#lists.isEmpty(openBreaks)}">
+                    <span class="status-icon ok" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></span>
+                    <p>PayPal shows nothing your books cannot explain.</p>
                 </div>
-                <div class="gap-total">
-                    <span class="money money-md" th:text="${@fmt.money(book > pp ? book - pp : pp - book)}">$14.00</span>
-                    <span class="gap-total-label">unexplained</span>
-                </div>
-            </div>
+                <p class="muted small ai-off" th:if="${!#lists.isEmpty(openBreaks) and !aiConfigured}" th:text="${aiNotConfiguredReason}">
+                    AI investigator is not configured.</p>
 
-            <div class="wf-scroll">
-                <div class="wf" th:attr="data-book=${book},data-paypal=${pp}"
-                     th:style="${'--cols: ' + (stepCount + 2)}">
-                    <div class="wf-grid" aria-hidden="true"></div>
-                    <ol class="wf-cols">
-                        <li class="wf-col wf-total" th:attr="data-value=${book}">
-                            <div class="wf-plot">
-                                <span class="wf-bar"></span>
-                                <span class="wf-amount" th:text="${@fmt.money(book)}">$95.93</span>
-                            </div>
-                            <div class="wf-label"><span class="wf-name">Your books</span><span class="wf-sub">what the ledger says</span></div>
-                        </li>
-                        <li class="wf-col wf-step" th:each="bl : ${summary.breaks}"
-                            th:with="refund=${bl.kind == 'UNBOOKED_REFUND'},
-                                     who=${openBreaks.^[id == __${bl.id}__]}"
-                            th:attr="data-delta=${refund ? -bl.amountCents : bl.amountCents}">
-                            <div class="wf-plot">
-                                <span class="wf-link"></span>
-                                <span class="wf-bar"></span>
-                                <span class="wf-amount" th:text="${(refund ? '−' : '+') + @fmt.money(bl.amountCents)}">&minus;$10.00</span>
-                            </div>
-                            <a class="wf-label" th:href="${'#break-' + bl.id}">
-                                <span class="wf-name"
-                                      th:text="${who != null and who.customerName != null ? who.customerName : 'Break #' + bl.id}">Daniel Okafor</span>
-                                <span class="wf-sub" th:text="${refund ? 'refund at PayPal' : 'payment at PayPal'}">refund at PayPal</span>
-                            </a>
-                        </li>
-                        <li class="wf-col wf-step wf-rest" th:if="${rest != 0}" th:attr="data-delta=${rest}">
-                            <div class="wf-plot">
-                                <span class="wf-link"></span>
-                                <span class="wf-bar"></span>
-                                <span class="wf-amount" th:text="${(rest < 0 ? '−' : '+') + @fmt.money(rest < 0 ? -rest : rest)}">&minus;$0.30</span>
-                            </div>
-                            <div class="wf-label"><span class="wf-name">Not matched</span><span class="wf-sub">to any break yet</span></div>
-                        </li>
-                        <li class="wf-col wf-total wf-end" th:attr="data-value=${pp}">
-                            <div class="wf-plot">
-                                <span class="wf-link"></span>
-                                <span class="wf-bar"></span>
-                                <span class="wf-amount" th:text="${@fmt.money(pp)}">$81.93</span>
-                            </div>
-                            <div class="wf-label"><span class="wf-name">PayPal</span><span class="wf-sub">what PayPal shows</span></div>
-                        </li>
-                    </ol>
-                </div>
-            </div>
-
-            <p class="wf-legend">
-                <span class="wf-key" aria-hidden="true"></span>
-                <span>Amber steps are money PayPal moved that the books do not have yet.
-                    The scale does not start at zero, so small steps stay visible.</span>
-            </p>
-        </th:block>
-    </section>
-
-    <!--/* The three checks the close ran. */-->
-    <section class="card checks-panel" th:fragment="checks" th:if="${summary != null and !#lists.isEmpty(summary.checks)}">
-        <div class="panel-head">
-            <h2>What the close checked</h2>
-            <span class="muted" th:text="${#lists.size(summary.checks.?[pass]) + ' of ' + #lists.size(summary.checks) + ' pass'}">2 of 3 pass</span>
-        </div>
-        <ul class="status-list checks">
-            <li class="check" th:each="c : ${summary.checks}" th:classappend="${c.pass} ? 'pass' : 'fail'">
-                <span class="status-icon" th:classappend="${c.pass} ? 'ok' : 'bad'" aria-hidden="true">
-                    <svg th:if="${c.pass}" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>
-                    <svg th:unless="${c.pass}" viewBox="0 0 24 24"><path d="M12 6v8"/><path d="M12 18.5v0.5"/></svg>
-                </span>
-                <span class="status-text">
-                    <span class="status-title" th:text="${c.title}">Check</span>
-                    <span class="status-detail check-note" th:text="${c.explanation}">Explanation</span>
-                </span>
-                <span class="check-figures">
-                    <span class="check-figure">
-                        <span class="check-label" th:text="${c.expectedLabel}">Expected</span>
-                        <span class="check-value" th:text="${c.expectedCents == null} ? 'Not read' : ${@fmt.money(c.expectedCents)}">$0.00</span>
-                    </span>
-                    <span class="check-figure">
-                        <span class="check-label" th:text="${c.actualLabel}">Actual</span>
-                        <span class="check-value" th:text="${@fmt.money(c.actualCents)}">$0.00</span>
-                    </span>
-                </span>
-                <span class="badge" th:classappend="${c.pass} ? 'ok' : 'bad'" th:text="${c.pass} ? 'Pass' : 'Fail'">Pass</span>
-            </li>
-        </ul>
-    </section>
-
-    <!--/* What else the run did: pre-close steps and notes. */-->
-    <section class="card findings-panel" th:fragment="findings"
-             th:if="${latest != null and summary != null and (!#lists.isEmpty(summary.notes) or !#lists.isEmpty(summary.steps))}">
-        <h2>Findings</h2>
-        <ul class="findings">
-            <li th:each="s : ${summary.steps}">
-                <span class="badge" th:classappend="${s.error == null} ? 'plain' : 'bad'" th:text="${s.name}">step</span>
-                <span th:if="${s.error == null}" th:text="${s.processed + ' item(s) handled before the comparison'}"></span>
-                <span th:if="${s.error != null}" th:text="${s.error}"></span>
-            </li>
-            <li th:each="n : ${summary.notes}"><span class="finding-dot" aria-hidden="true"></span><span th:text="${n}">note</span></li>
-        </ul>
-    </section>
-
-    <!--/* (3) The open breaks, each with its status and actions. (4) Each item carries the thinking state, shown while
-           its Investigate request is in flight (the htmx-request class on the item). */-->
-    <section class="card breaks-panel" th:fragment="breaks">
-        <div class="panel-head">
-            <h2>Open breaks</h2>
-            <span class="muted" th:text="${#lists.size(openBreaks) + ' open'}">0 open</span>
-        </div>
-        <div class="breaks-clear" th:if="${#lists.isEmpty(openBreaks)}">
-            <span class="status-icon ok" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></span>
-            <p>PayPal shows nothing the ledger cannot explain.</p>
-        </div>
-        <p class="muted small ai-off" th:if="${!#lists.isEmpty(openBreaks) and !aiConfigured}" th:text="${aiNotConfiguredReason}">
-            AI investigator is not configured.</p>
-        <ul class="break-list" th:unless="${#lists.isEmpty(openBreaks)}">
-            <li class="break-item" th:each="b : ${openBreaks}" th:id="${'break-' + b.id}"
-                th:with="pendingId=${pendingProposals.get(b.id)},
-                         name=${b.customerName != null} ? ${b.customerName} : 'Unknown',
-                         parts=${#strings.arraySplit(b.customerName != null ? b.customerName : 'Unknown', ' ')},
-                         canInvestigate=${isMaker and aiConfigured and b.status.name() == 'OPEN'}">
-                <div class="break-main">
-                    <div class="break-top">
-                        <span class="person">
-                            <span class="avatar" aria-hidden="true"
-                                  th:classappend="${'tone-' + (b.customerId == null ? 0 : (b.customerId - 1) % 3)}"
-                                  th:text="${#strings.toUpperCase(#strings.substring(parts[0], 0, 1) + (parts.length > 1 ? #strings.substring(parts[parts.length - 1], 0, 1) : ''))}">DA</span>
-                            <span class="person-text">
-                                <span class="person-name" th:text="${name}">Demo Customer A</span>
-                                <span class="person-role" th:text="${'#' + b.id + ' found ' + @fmt.time(b.createdAt)}">#1</span>
-                            </span>
+                <section class="report-break" th:each="b, it : ${openBreaks}" th:id="${'break-' + b.id}"
+                         th:attr="data-break-id=${b.id},aria-labelledby=${'bn-' + b.id}"
+                         th:with="pp=${proposalPages != null ? proposalPages.get(b.id) : null},
+                                  live=${pp != null and pp.proposal.status.name() != 'DISMISSED' and pp.proposal.status.name() != 'APPROVED'},
+                                  refund=${b.kind.name() == 'UNBOOKED_REFUND'},
+                                  word=${refund ? 'refund' : 'payment'},
+                                  name=${b.customerName != null} ? ${b.customerName} : 'Unknown customer',
+                                  parts=${#strings.arraySplit(b.customerName != null ? b.customerName : 'Unknown', ' ')},
+                                  canInvestigate=${isMaker and aiConfigured and b.status.name() == 'OPEN'},
+                                  ords=${ {'First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth'} }"
+                         th:classappend="${live and pp.canDecide()} ? 'is-turn'">
+                    <header class="rb-head">
+                        <span class="avatar rb-avatar" aria-hidden="true"
+                              th:classappend="${'tone-' + (b.customerId == null ? 0 : (b.customerId - 1) % 3)}"
+                              th:text="${#strings.substring(parts[0], 0, 1)}">M</span>
+                        <div class="rb-who">
+                            <span class="rb-ordinal" th:text="${it.index < 6 ? ords[it.index] + ' ' + word : #strings.capitalize(word) + ' ' + it.count}">First refund</span>
+                            <h3 class="rb-name" th:id="${'bn-' + b.id}" th:text="${name}">Maya Lindqvist</h3>
+                        </div>
+                        <span class="rb-amount money" th:text="${(refund ? '−' : '+') + @fmt.money(b.amountCents)}">&minus;$4.00</span>
+                        <span class="rb-chips">
+                            <span class="badge watch rb-chip" th:if="${live and pp.canDecide()}">Your turn</span>
+                            <span class="badge plain rb-chip" th:if="${live and pp.pending() and !pp.canDecide()}">Waiting for a checker</span>
+                            <span class="badge bad rb-chip" th:if="${live and !pp.pending()}">Needs a person</span>
+                            <span class="badge plain rb-chip" th:if="${!live}">Not looked at yet</span>
+                            <span class="badge plain rb-chip rb-chip-reading" aria-hidden="true"><span class="rd-dots"><i></i><i></i><i></i></span>AI is reading</span>
                         </span>
-                        <span class="money money-md break-amount" th:text="${@fmt.money(b.amountCents)}">$0.00</span>
+                    </header>
+
+                    <dl class="rb-record">
+                        <div class="rb-row">
+                            <dt th:text="${refund ? 'PayPal refund note' : 'PayPal payment note'}">PayPal refund note</dt>
+                            <dd th:if="${pp != null and !#lists.isEmpty(pp.noteSegments)}" class="rb-quote">&ldquo;<th:block th:each="s : ${pp.noteSegments}"><mark
+                                    th:if="${s.marked}" th:text="${s.text}"></mark><th:block th:unless="${s.marked}" th:text="${s.text}"></th:block></th:block>&rdquo;</dd>
+                            <dd th:if="${(pp == null or #lists.isEmpty(pp.noteSegments)) and b.note != null}" class="rb-quote"
+                                th:text="${'“' + b.note + '”'}">“Sorry the coffee was cold, this one is on us”</dd>
+                            <dd th:if="${(pp == null or #lists.isEmpty(pp.noteSegments)) and b.note == null}" class="muted">No note was left with it.</dd>
+                        </div>
+                        <div class="rb-row" th:if="${b.customerId != null}">
+                            <dt th:text="${parts[0] + '’s record'}">Maya's record</dt>
+                            <dd>Balance today <strong th:text="${@fmt.money(@ledgerQueries.customerPrepaid(b.customerId))}">$58.00</strong>.<th:block
+                                    th:if="${pp != null and #lists.isEmpty(pp.messages)}"> Sent no messages.</th:block><th:block
+                                    th:if="${pp != null and !#lists.isEmpty(pp.messages)}"
+                                    th:with="m=${pp.messages[#lists.size(pp.messages) - 1]}"> Last wrote &ldquo;<th:block th:each="s : ${m.body}"><mark
+                                    th:if="${s.marked}" th:text="${s.text}"></mark><th:block th:unless="${s.marked}" th:text="${s.text}"></th:block></th:block>&rdquo;</th:block></dd>
+                        </div>
+                        <div class="rb-row" th:if="${b.customerId == null}">
+                            <dt>Customer</dt>
+                            <dd class="muted">No customer is linked to this PayPal record.</dd>
+                        </div>
+                        <div class="rb-row rb-meta">
+                            <dt>PayPal ref</dt>
+                            <dd><code th:text="${b.paypalRef}">REF</code> <span class="muted small" th:text="${'found ' + @fmt.time(b.createdAt)}">found 10:28</span></dd>
+                        </div>
+                    </dl>
+
+                    <!--/* The proposal, in place: judgement with the treatment toggle, before and after, checks, sign-off. */-->
+                    <div class="rb-proposal" th:if="${live}" th:with="inReport=true">
+                        <th:block th:if="${pp.chosen != null or pp.alternative != null}">
+                            <div th:replace="~{investigate/fragments :: diff(${pp})}"></div>
+                        </th:block>
+                        <div th:replace="~{investigate/fragments :: relay(${pp})}"></div>
+                        <p class="rb-more"><a th:href="@{/proposals/{id}(id=${pp.proposal.id})}"
+                              th:text="${'Full reasoning and evidence, proposal #' + pp.proposal.id}">Full reasoning and evidence, proposal #1</a></p>
                     </div>
-                    <div class="break-tags">
-                        <span class="badge bad" th:text="${@fmt.label(b.kind)}">Unbooked refund</span>
-                        <span class="badge" th:classappend="${@fmt.tone(b.status)}" th:text="${@fmt.label(b.status)}">Open</span>
-                        <code th:text="${b.paypalRef}">REF</code>
-                    </div>
-                    <div class="break-note-block" th:if="${b.note != null}">
-                        <span class="break-note-label">Note from PayPal</span>
-                        <p class="well break-note" th:text="${b.note}">Note</p>
-                    </div>
-                    <div class="break-actions" th:if="${canInvestigate or pendingId != null}">
-                        <form th:if="${canInvestigate}" th:action="@{/breaks/{id}/investigate(id=${b.id})}" method="post"
-                              class="inline" data-thinking>
+
+                    <p class="rb-past muted small" th:if="${pp != null and !live}">
+                        <a th:href="@{/proposals/{id}(id=${pp.proposal.id})}" th:text="${'Proposal #' + pp.proposal.id}">Proposal #1</a>
+                        was <span th:text="${#strings.toLowerCase(@fmt.label(pp.proposal.status))}">dismissed</span>.
+                    </p>
+
+                    <div class="rb-actions" th:if="${canInvestigate}">
+                        <form th:action="@{/breaks/{id}/investigate(id=${b.id})}" method="post" class="inline" data-thinking>
                             <button type="submit" class="primary">Investigate</button>
                         </form>
-                        <a class="btn" th:if="${pendingId != null}" th:href="@{/proposals/{id}(id=${pendingId})}"
-                           th:text="${'Proposal #' + pendingId}">Proposal #1</a>
-                        <span class="muted small" th:if="${pendingId != null}">Waiting for a checker</span>
+                        <span class="muted small">The AI reads the PayPal note and this customer&rsquo;s history, then suggests how to book it.</span>
                     </div>
-                </div>
+                    <p class="rb-actions muted small" th:if="${!live and !canInvestigate and aiConfigured and !isMaker}">
+                        Waiting for a maker to ask the investigator.</p>
 
-                <div class="thinking htmx-indicator" th:fragment="thinking" th:if="${canInvestigate}" role="status" aria-live="polite">
-                    <div class="thinking-head">
-                        <span class="thinking-pill"><span class="thinking-dots" aria-hidden="true"><i></i><i></i><i></i></span>Investigator is reading</span>
-                    </div>
-                    <div class="thinking-body">
-                        <div class="thinking-evidence">
-                            <div class="thinking-subhead">
-                                <h3>Evidence it is reading</h3>
-                                <span class="muted small thinking-count"><span class="tc-1">0</span><span class="tc-2">1</span><span class="tc-3">2</span> of 3 read</span>
-                            </div>
-                            <ol class="evidence">
-                                <li class="ev ev-1">
-                                    <span class="ev-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></span>
-                                    <span class="ev-text">
-                                        <span class="ev-title" th:text="${b.kind.name() == 'UNBOOKED_REFUND' ? 'PayPal refund record' : 'PayPal payment record'}">PayPal refund record</span>
-                                        <span class="ev-detail" th:text="${@fmt.money(b.amountCents) + ' for ' + name}">$4.00 for Maya</span>
-                                    </span>
-                                    <span class="ev-state"><span class="st-now">Reading now</span><span class="st-done">Read</span></span>
-                                </li>
-                                <li class="ev ev-2">
-                                    <span class="ev-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></span>
-                                    <span class="ev-text">
-                                        <span class="ev-title">PayPal's note to the payer</span>
-                                        <span class="ev-quote" th:if="${b.note != null}" th:text="${'“' + b.note + '”'}">"Sorry the coffee was cold"</span>
-                                        <span class="ev-detail" th:if="${b.note == null}">No note was left with this one</span>
-                                    </span>
-                                    <span class="ev-state"><span class="st-next">Next</span><span class="st-now">Reading now</span><span class="st-done">Read</span></span>
-                                </li>
-                                <li class="ev ev-3">
-                                    <span class="ev-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></span>
-                                    <span class="ev-text">
-                                        <span class="ev-title" th:text="${b.customerName != null ? name + '’s history' : 'The customer’s history'}">Maya's history</span>
-                                        <span class="ev-detail">Balance, top-ups and what they asked for</span>
-                                    </span>
-                                    <span class="ev-state"><span class="st-next">Next</span><span class="st-now">Reading now</span><span class="st-done">Read</span></span>
-                                </li>
-                            </ol>
-                            <p class="muted small thinking-foot">It reads only the records for this break. Nothing is booked until a checker approves.</p>
+                    <!--/* (4) While the Investigate request is in flight (htmx-request on the section). */-->
+                    <div class="rd htmx-indicator" th:fragment="thinking" th:if="${canInvestigate}" role="status" aria-live="polite">
+                        <div class="rd-head">
+                            <span class="rd-spin" aria-hidden="true"></span>
+                            <strong class="rd-title">
+                                <span class="rd-s rd-s1">Reading the PayPal record</span>
+                                <span class="rd-s rd-s2" th:text="${refund ? 'Reading the PayPal refund note' : 'Reading the PayPal payment note'}">Reading the PayPal refund note</span>
+                                <span class="rd-s rd-s3" th:text="${'Reading ' + parts[0] + '’s history'}">Reading Maya's history</span>
+                                <span class="rd-s rd-s4">Writing up a suggestion</span>
+                            </strong>
+                            <span class="rd-count muted small">Source <span class="rd-n rd-n1">1</span><span class="rd-n rd-n2">2</span><span class="rd-n rd-n3">3</span> of 3, usually done in 10 seconds</span>
                         </div>
-                        <div class="thinking-next">
-                            <h3>After it reads</h3>
-                            <ol class="next-steps">
-                                <li><span class="next-n" aria-hidden="true">1</span><span class="next-text">Suggests how to book it
-                                    <span class="next-skeleton" aria-hidden="true"><i></i><i></i></span></span></li>
-                                <li><span class="next-n" aria-hidden="true">2</span><span class="next-text">Code checks the entry
-                                    <span class="muted small">including every quote, word for word</span></span></li>
-                                <li><span class="next-n" aria-hidden="true">3</span><span class="next-text">A checker approves it</span></li>
-                            </ol>
-                            <div class="thinking-progress" aria-hidden="true"><span></span></div>
-                            <p class="muted small">Usually 5 to 10 seconds. The proposal opens when it is ready.</p>
-                        </div>
+                        <p class="rd-quote" th:if="${b.note != null}" th:text="${'“' + b.note + '”'}">“Closing my tab, moving away”</p>
+                        <div class="rd-bar" aria-hidden="true"><span></span></div>
+                        <p class="muted small rd-foot">It reads only the records for this one. Nothing is booked until a checker approves.</p>
                     </div>
-                </div>
-            </li>
-        </ul>
-    </section>
+                </section>
+            </section>
 
-    <section class="card history-panel" th:fragment="history">
-        <div class="panel-head">
-            <h2>History</h2>
-            <span class="muted">Last 20 runs</span>
-        </div>
-        <p class="muted" th:if="${#lists.isEmpty(history)}">No runs yet.</p>
-        <div class="table-well history-well" th:unless="${#lists.isEmpty(history)}">
-            <table class="table compact">
-                <thead>
-                <tr>
-                    <th>Run</th><th>Business date</th><th>Status</th><th class="num">Owed</th>
-                    <th class="num">Ledger cash</th><th class="num">PayPal cash</th><th class="num">Unexplained</th>
-                    <th>By</th><th>At</th>
-                </tr>
-                </thead>
-                <tbody>
-                <tr th:each="r : ${history}">
-                    <td th:text="${'#' + r.id}">#1</td>
-                    <td th:text="${@fmt.date(r.businessDate)}">2026-01-01</td>
-                    <td><span class="badge" th:classappend="${@fmt.tone(r.status)}" th:text="${@fmt.label(r.status)}">Closed</span></td>
-                    <td class="num" th:text="${@fmt.money(r.owedCents)}">$0.00</td>
-                    <td class="num" th:text="${@fmt.money(r.ledgerPaypalCashCents)}">$0.00</td>
-                    <td class="num" th:text="${@fmt.money(r.paypalDerivedCashCents)}">$0.00</td>
-                    <td class="num" th:classappend="${r.unexplainedCents != null and r.unexplainedCents != 0} ? 'unexplained'"
-                        th:text="${@fmt.money(r.unexplainedCents)}">$0.00</td>
-                    <td th:text="${@fmt.actor(r.runBy)}">maker</td>
-                    <td class="muted" th:text="${@fmt.time(r.runAt)}">time</td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
-        <p class="muted small close-foot"><a th:href="@{/close/webhooks}">PayPal webhook events received</a></p>
-    </section>
+            <!--/* (5) Where the day ends: what it still needs, or the closed day with Advance. */-->
+            <section class="report-signoff" id="signoff" th:if="${latest != null}" aria-labelledby="signoff-title">
+                <th:block th:if="${latest.status.name() != 'CLOSED'}">
+                    <div class="section-head">
+                        <h2 id="signoff-title">Sign-off</h2>
+                        <span class="section-note">The maker and the checker are two different people</span>
+                    </div>
+                    <p class="signoff-text" th:if="${report != null}" th:text="${report.closing}">The day closes when both refunds are approved. Each approval runs the close again by itself.</p>
+                    <ul class="signoff-list" th:unless="${#lists.isEmpty(openBreaks)}">
+                        <li th:each="b : ${openBreaks}"
+                            th:with="pp=${proposalPages != null ? proposalPages.get(b.id) : null},
+                                     live=${pp != null and pp.proposal.status.name() != 'DISMISSED' and pp.proposal.status.name() != 'APPROVED'}">
+                            <a class="signoff-who" th:href="${'#break-' + b.id}"
+                               th:text="${(b.customerName != null ? b.customerName : 'Unknown customer') + ', ' + @fmt.money(b.amountCents)}">Maya Lindqvist, $4.00</a>
+                            <span class="signoff-state" th:classappend="${live and pp.canDecide() ? 'is-turn' : (live and pp.pending() ? 'is-wait' : '')}"
+                                  th:text="${live and pp.canDecide() ? 'Your turn to approve' : (live and pp.pending() ? 'Waiting for a checker' : (live ? 'Needs a person' : 'Not looked at yet'))}">Your turn to approve</span>
+                        </li>
+                        <li class="signoff-end">
+                            <span class="signoff-who">Day closes</span>
+                            <span class="signoff-state">Once every one is approved</span>
+                        </li>
+                    </ul>
+                </th:block>
+
+                <!--/* The closed day. */-->
+                <section class="party" id="day-closed" th:fragment="dayClosed" th:if="${latest != null and latest.status.name() == 'CLOSED'}"
+                         th:with="day=${latest.businessDate}" th:data-business-date="${day}" aria-labelledby="party-title">
+                    <div class="party-rays" aria-hidden="true"></div>
+                    <div class="party-confetti" aria-hidden="true">
+                        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                    </div>
+                    <div class="party-seal" aria-hidden="true">
+                        <span><svg viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7"/></svg></span>
+                    </div>
+                    <span class="party-date"
+                          th:text="${@fmt.label(day.dayOfWeek) + ' ' + day.dayOfMonth + ' ' + @fmt.label(day.month)}">Friday 13 November</span>
+                    <h2 class="party-title" id="party-title">Closed, to the cent</h2>
+                    <p class="party-text">
+                        Your books and PayPal agree at <strong class="party-amount" th:text="${@fmt.money(latest.paypalDerivedCashCents)}">$81.93</strong>,
+                        and customers are owed <strong th:text="${@fmt.money(latest.owedCents)}">$53.00</strong>. Nothing is unexplained.
+                    </p>
+                    <ul class="party-chips" th:if="${summary != null and !#lists.isEmpty(summary.checks)}">
+                        <li th:each="c : ${summary.checks}">
+                            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg><span th:text="${c.title}">Every entry balances</span>
+                        </li>
+                    </ul>
+                    <div class="party-actions">
+                        <a class="btn" th:href="@{/ledger}">View the day's ledger</a>
+                        <form th:if="${isMaker and canAdvance}" th:action="@{/close/advance}" method="post" class="inline">
+                            <button type="submit" class="primary">Advance to next business day</button>
+                        </form>
+                    </div>
+                </section>
+            </section>
+
+            <!--/* (6) Supporting material, quiet and collapsed. */-->
+            <div class="report-more">
+                <details class="more" th:fragment="checks" th:if="${summary != null and !#lists.isEmpty(summary.checks)}">
+                    <summary><span class="more-title">What the close checked</span>
+                        <span class="more-note" th:text="${#lists.size(summary.checks.?[pass]) + ' of ' + #lists.size(summary.checks) + ' pass'}">2 of 3 pass</span></summary>
+                    <ul class="status-list checks">
+                        <li class="check" th:each="c : ${summary.checks}" th:classappend="${c.pass} ? 'pass' : 'fail'">
+                            <span class="status-icon" th:classappend="${c.pass} ? 'ok' : 'bad'" aria-hidden="true">
+                                <svg th:if="${c.pass}" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>
+                                <svg th:unless="${c.pass}" viewBox="0 0 24 24"><path d="M12 6v8"/><path d="M12 18.5v0.5"/></svg>
+                            </span>
+                            <span class="status-text">
+                                <span class="status-title" th:text="${c.title}">Check</span>
+                                <span class="status-detail check-note" th:text="${c.explanation}">Explanation</span>
+                            </span>
+                            <span class="check-figures">
+                                <span class="check-figure">
+                                    <span class="check-label" th:text="${c.expectedLabel}">Expected</span>
+                                    <span class="check-value" th:text="${c.expectedCents == null} ? 'Not read' : ${@fmt.money(c.expectedCents)}">$0.00</span>
+                                </span>
+                                <span class="check-figure">
+                                    <span class="check-label" th:text="${c.actualLabel}">Actual</span>
+                                    <span class="check-value" th:text="${@fmt.money(c.actualCents)}">$0.00</span>
+                                </span>
+                            </span>
+                            <span class="badge" th:classappend="${c.pass} ? 'ok' : 'bad'" th:text="${c.pass} ? 'Pass' : 'Fail'">Pass</span>
+                        </li>
+                    </ul>
+                </details>
+
+                <details class="more" th:fragment="findings"
+                         th:if="${latest != null and summary != null and (!#lists.isEmpty(summary.notes) or !#lists.isEmpty(summary.steps))}">
+                    <summary><span class="more-title">Findings</span>
+                        <span class="more-note" th:text="${@fmt.count(#lists.size(summary.notes) + #lists.size(summary.steps), 'note', 'notes')}">2 notes</span></summary>
+                    <ul class="findings">
+                        <li th:each="s : ${summary.steps}">
+                            <span class="badge" th:classappend="${s.error == null} ? 'plain' : 'bad'" th:text="${s.name}">step</span>
+                            <span th:if="${s.error == null}" th:text="${s.processed + ' item(s) handled before the comparison'}"></span>
+                            <span th:if="${s.error != null}" th:text="${s.error}"></span>
+                        </li>
+                        <li th:each="n : ${summary.notes}"><span class="finding-dot" aria-hidden="true"></span><span th:text="${n}">note</span></li>
+                    </ul>
+                </details>
+
+                <details class="more" th:fragment="history">
+                    <summary><span class="more-title">History</span>
+                        <span class="more-note">Last 20 runs</span></summary>
+                    <p class="muted" th:if="${#lists.isEmpty(history)}">No runs yet.</p>
+                    <div class="table-well history-well" th:unless="${#lists.isEmpty(history)}">
+                        <table class="table compact">
+                            <thead>
+                            <tr>
+                                <th>Run</th><th>Business date</th><th>Status</th><th class="num">Owed</th>
+                                <th class="num">Ledger cash</th><th class="num">PayPal cash</th><th class="num">Unexplained</th>
+                                <th>By</th><th>At</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="r : ${history}">
+                                <td th:text="${'#' + r.id}">#1</td>
+                                <td th:text="${@fmt.date(r.businessDate)}">2026-01-01</td>
+                                <td><span class="badge" th:classappend="${@fmt.tone(r.status)}" th:text="${@fmt.label(r.status)}">Closed</span></td>
+                                <td class="num" th:text="${@fmt.money(r.owedCents)}">$0.00</td>
+                                <td class="num" th:text="${@fmt.money(r.ledgerPaypalCashCents)}">$0.00</td>
+                                <td class="num" th:text="${@fmt.money(r.paypalDerivedCashCents)}">$0.00</td>
+                                <td class="num" th:classappend="${r.unexplainedCents != null and r.unexplainedCents != 0} ? 'unexplained'"
+                                    th:text="${@fmt.money(r.unexplainedCents)}">$0.00</td>
+                                <td th:text="${@fmt.actor(r.runBy)}">maker</td>
+                                <td class="muted" th:text="${@fmt.time(r.runAt)}">time</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="muted small close-foot"><a th:href="@{/close/webhooks}">PayPal webhook events received</a></p>
+                </details>
+            </div>
+        </article>
+    </div>
 
     <script>
     (function () {
       /* Waiting for the AI: the Investigate form is a plain POST that answers with a redirect. While it is in flight,
-         the break item gets htmx's indicator class, so its .htmx-indicator (the thinking panel) shows. */
+         the break section gets htmx's indicator class, so its .htmx-indicator (the reading state) shows. */
       document.addEventListener('submit', function (e) {
         var form = e.target;
         if (!form || !form.hasAttribute || !form.hasAttribute('data-thinking')) return;
-        var item = form.closest('.break-item');
+        var item = form.closest('.report-break');
         if (!item) return;
         item.classList.add('htmx-request');
-        var panel = item.querySelector('.thinking');
+        var panel = item.querySelector('.rd');
         var step = 1;
         if (panel) {
           panel.setAttribute('data-step', '1');
@@ -416,18 +429,40 @@
       });
       window.addEventListener('pageshow', function (e) {
         if (!e.persisted) return;
-        document.querySelectorAll('.break-item.htmx-request').forEach(function (item) {
+        document.querySelectorAll('.report-break.htmx-request').forEach(function (item) {
           item.classList.remove('htmx-request');
           if (item._thinkingTimer) clearInterval(item._thinkingTimer);
         });
       });
 
-      /* The waterfall: place each bar on a shared scale from the cents in the data attributes. */
+      /* The contents: light the section in view. */
+      var toc = document.querySelector('.report-toc');
+      if (toc && 'IntersectionObserver' in window) {
+        var links = Array.prototype.slice.call(toc.querySelectorAll('a[href^="#"]'));
+        var light = function (id) {
+          links.forEach(function (a) {
+            var on = a.getAttribute('href') === '#' + id;
+            a.classList.toggle('is-current', on);
+            if (on) a.setAttribute('aria-current', 'location'); else a.removeAttribute('aria-current');
+          });
+        };
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) { if (en.isIntersecting) light(en.target.id); });
+        }, { rootMargin: '-35% 0px -60% 0px' });
+        links.forEach(function (a) {
+          var el = document.getElementById(a.getAttribute('href').slice(1));
+          if (el) io.observe(el);
+        });
+        if (links.length) light('result');
+      }
+
+      /* The waterfall: place each bar on a shared scale from the cents in the data attributes. Exposed so the
+         one-time motion in report-motion.js can draw the picture it last saw and then move to this one. */
       function dollars(c, fine) {
         var v = c / 100;
         return '$' + (fine ? v.toFixed(2) : Math.round(v).toString());
       }
-      document.querySelectorAll('.wf[data-book]').forEach(function (wf) {
+      function layoutWaterfall(wf) {
         try {
           var book = Number(wf.getAttribute('data-book')), pp = Number(wf.getAttribute('data-paypal'));
           var cols = Array.prototype.slice.call(wf.querySelectorAll('.wf-col'));
@@ -470,9 +505,12 @@
         } catch (err) {
           wf.classList.add('wf-ready');
         }
-      });
+      }
+      window.backedLayoutWaterfall = layoutWaterfall;
+      document.querySelectorAll('.wf[data-book]').forEach(layoutWaterfall);
     })();
     </script>
+    <script th:src="@{/js/report-motion.js}" defer></script>
 </main>
 </body>
 </html>

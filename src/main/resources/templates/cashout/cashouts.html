@@ -7,19 +7,19 @@
     <header class="page-header">
         <div>
             <h1>Cash-outs</h1>
-            <p class="page-context">A cash-out is paid back as refunds on the card top-ups it came from, one leg per PayPal capture.</p>
+            <p class="page-context">Money a customer takes out goes back to the cards they paid with, one refund per card payment.</p>
         </div>
     </header>
     <div th:replace="~{layout/flash :: flash}"></div>
 
     <section class="stats">
         <div class="stat">
-            <span class="stat-label">In flight</span>
+            <span class="stat-label">On the way</span>
             <span class="stat-value num" th:text="${@fmt.money(clearingCents)}">$0.00</span>
-            <span class="stat-note muted">Taken from balances, not yet refunded at PayPal</span>
+            <span class="stat-note muted">Taken off balances, not refunded by PayPal yet</span>
         </div>
         <div class="stat">
-            <span class="stat-label">Legs waiting</span>
+            <span class="stat-label">Refunds waiting</span>
             <span class="stat-value stat-chips">
                 <span class="badge badge-lg" th:classappend="${counts.pending > 0} ? 'watch' : 'ok'" th:text="${counts.pending + ' pending'}">0 pending</span>
             </span>
@@ -28,21 +28,21 @@
             </span>
         </div>
         <div class="stat">
-            <span class="stat-label">Legs finished</span>
+            <span class="stat-label">Refunds done</span>
             <span class="stat-value stat-chips">
                 <span class="badge badge-lg ok" th:text="${counts.done + ' refunded'}">0 refunded</span>
             </span>
             <span class="stat-note">
-                <span class="badge" th:classappend="${counts.failed > 0} ? 'bad' : 'plain'" th:text="${counts.failed + ' failed, compensated'}">0 failed</span>
+                <span class="badge" th:classappend="${counts.failed > 0} ? 'bad' : 'plain'" th:text="${counts.failed + ' failed, money returned'}">0 failed, money returned</span>
             </span>
         </div>
     </section>
 
     <section class="card relay-panel" aria-labelledby="relay-title">
         <div class="panel-head relay-head">
-            <h2 id="relay-title">Refund relay</h2>
+            <h2 id="relay-title">Sending refunds</h2>
             <form th:action="@{/cashouts/relay}" method="post" class="relay-form">
-                <button type="submit" class="primary" th:if="${#strings.contains(currentRoles, 'MAKER')}">Run relay now</button>
+                <button type="submit" class="primary" th:if="${#strings.contains(currentRoles, 'MAKER')}">Send refunds now</button>
             </form>
         </div>
         <ul class="relay-rules">
@@ -52,7 +52,7 @@
                 </span>
                 <span class="status-text">
                     <span class="status-title">Every few seconds</span>
-                    <span class="status-detail">The relay sends pending and in-doubt legs to PayPal every few seconds, each with its own stored request id.</span>
+                    <span class="status-detail">Backed sends waiting refunds to PayPal every few seconds, each with its own request id, so none is paid twice.</span>
                 </span>
             </li>
             <li>
@@ -61,7 +61,7 @@
                 </span>
                 <span class="status-text">
                     <span class="status-title">Declined</span>
-                    <span class="status-detail">A declined leg is not retried and its amount goes back to the balance.</span>
+                    <span class="status-detail">PayPal said no. We don't try again, and the money goes back on the balance.</span>
                 </span>
             </li>
             <li>
@@ -70,8 +70,7 @@
                 </span>
                 <span class="status-text">
                     <span class="status-title">PayPal error</span>
-                    <span class="status-detail">A 5xx is retried later with the same request id; after five tries the leg is held as in doubt, never returned to the
-                balance, because a 5xx does not prove the refund did not happen.</span>
+                    <span class="status-detail">We try again with the same request id. After five tries it waits for a person, and the money stays off the balance, since the refund may have gone through.</span>
                 </span>
             </li>
             <li>
@@ -79,8 +78,8 @@
                     <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 9"/><path d="M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15"/><path d="M4 20v-5h5"/></svg>
                 </span>
                 <span class="status-text">
-                    <span class="status-title">Unknown outcome</span>
-                    <span class="status-detail">An unknown outcome is re-sent with the same request id, which PayPal answers with the original refund if it already happened.</span>
+                    <span class="status-title">No answer</span>
+                    <span class="status-detail">We ask again with the same request id. If the refund already happened, PayPal sends back that same refund.</span>
                 </span>
             </li>
         </ul>
@@ -90,7 +89,7 @@
         <div class="empty-state">
             <div class="empty-copy">
                 <p class="empty-title">No cash-outs yet.</p>
-                <p class="empty-text">When a customer cashes out from their page, each refund leg shows here with its own status.</p>
+                <p class="empty-text">When a customer cashes out from their page, each refund shows here with its own status.</p>
             </div>
             <div class="empty-ghost" aria-hidden="true"><span></span><span></span></div>
         </div>
@@ -124,7 +123,7 @@
                       th:style="${'flex-grow: ' + l.amountCents}"></span>
             </div>
             <p class="leg-count">
-                <strong th:text="${doneLegs + ' of ' + #lists.size(c.legs)}">0 of 1</strong> legs refunded
+                <strong th:text="${doneLegs + ' of ' + #lists.size(c.legs)}">0 of 1</strong> refunds done
             </p>
             <p class="cashout-meta small">
                 Business date <span th:text="${@fmt.date(c.businessDate)}">2026-01-01</span>,
@@ -146,7 +145,7 @@
                 </div>
                 <div class="leg-card">
                     <div class="leg-top">
-                        <span class="leg-name">Leg <span th:text="${l.legNo}">1</span></span>
+                        <span class="leg-name">Refund <span th:text="${l.legNo}">1</span></span>
                         <span class="money leg-money" th:text="${@fmt.money(l.amountCents)}">$0.00</span>
                     </div>
                     <div class="leg-status">
@@ -163,13 +162,13 @@
                             <code th:if="${l.paypalRefundId != null}" th:text="${l.paypalRefundId}">REFUND</code>
                             <span class="muted" th:if="${l.paypalRefundId == null}">Not yet</span>
                         </dd>
-                        <dt>Attempts</dt>
+                        <dt>Tries</dt>
                         <dd class="num" th:text="${l.attempts}">0</dd>
                         <dt class="leg-wide">Request id</dt>
                         <dd class="leg-wide"><code th:text="${l.requestId}">cashout-leg-1</code></dd>
                     </dl>
                     <div class="leg-error" th:if="${l.lastError != null and !#strings.isEmpty(l.lastError)}">
-                        <span class="leg-error-label">Last error</span>
+                        <span class="leg-error-label">What PayPal said last</span>
                         <span class="small" th:text="${l.lastError}"></span>
                     </div>
                 </div>

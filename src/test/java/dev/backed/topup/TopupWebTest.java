@@ -95,7 +95,7 @@ class TopupWebTest extends AbstractDbTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(allOf(
                         containsString("In doubt"),
-                        containsString("Resolve"),
+                        containsString("Ask PayPal now"),
                         containsString(t.requestId()),
                         containsString("/topups/" + t.id() + "/resolve"))));
 

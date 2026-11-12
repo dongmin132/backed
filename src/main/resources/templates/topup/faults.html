@@ -10,7 +10,7 @@
                 <h1>Demo faults</h1>
                 <span class="badge badge-lg demo-tag">Demo tool</span>
             </div>
-            <p class="page-context">Break one PayPal call on purpose, to show what Backed does when PayPal goes wrong.</p>
+            <p class="page-context">Make one PayPal call go wrong on purpose, to see how Backed copes.</p>
         </div>
         <div class="page-actions">
             <span class="mode-pill">PayPal mode <code th:text="${paypalMode}">sandbox</code></span>
@@ -19,8 +19,8 @@
     <div th:replace="~{layout/flash :: flash}"></div>
 
     <p class="flash error" role="alert" th:unless="${credentialsConfigured}">
-        PayPal credentials are not configured. Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET; until then every
-        PayPal call fails and nothing is charged.
+        PayPal isn't connected yet. Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET. Until then every PayPal
+        call fails and nothing is charged.
     </p>
 
     <section class="card demo-panel" aria-labelledby="fault-switches">
@@ -29,7 +29,7 @@
             <span class="muted" th:text="${#lists.size(faults) + ' switches'}">3 switches</span>
         </div>
         <p class="demo-lead">
-            Each switch is one-shot: it changes the next matching PayPal call only, then turns itself off.
+            Each switch works once: it changes the next matching PayPal call, then turns itself off.
         </p>
         <ul class="fault-grid">
             <li class="fault" th:each="f : ${faults}" th:classappend="${f.armed} ? 'is-armed'">
@@ -40,9 +40,9 @@
                 </div>
                 <h3 class="fault-label" th:text="${f.label}">Drop the response of the next capture</h3>
                 <p class="fault-hint" th:switch="${f.name}">
-                    <span th:case="'DROP_NEXT_CAPTURE_RESPONSE'">Then top up from a customer page: the top-up lands in doubt, and Resolve credits it once.</span>
-                    <span th:case="'FAIL_NEXT_REFUND_WITH_5XX'">Then ask for a cash-out: the relay tries again with the same request id and it goes through.</span>
-                    <span th:case="'DECLINE_NEXT_REFUND'">Then ask for a cash-out: the refund fails and the money goes back to the balance.</span>
+                    <span th:case="'DROP_NEXT_CAPTURE_RESPONSE'">Then top up from a customer page. The top-up waits for PayPal, and Ask PayPal now credits it once.</span>
+                    <span th:case="'FAIL_NEXT_REFUND_WITH_5XX'">Then ask for a cash-out. Backed tries again with the same request id, and the refund goes through.</span>
+                    <span th:case="'DECLINE_NEXT_REFUND'">Then ask for a cash-out. PayPal says no, and the money goes back on the balance.</span>
                 </p>
                 <div class="fault-foot">
                     <code th:text="${f.name}">DROP_NEXT_CAPTURE_RESPONSE</code>
@@ -61,13 +61,12 @@
         <div class="refund-copy">
             <h2 id="outside-refund">Refund at PayPal outside the ledger</h2>
             <p class="muted">
-                Stands in for a refund made by hand in the PayPal dashboard. It goes straight to PayPal with a fresh
-                request id, skips the fault switches, and writes nothing to the ledger, so the next day close will
-                find a refund it cannot explain.
+                Like a refund made by hand in the PayPal dashboard. It goes straight to PayPal and nothing is
+                written in your books, so the next day close finds a refund it can't explain.
             </p>
             <ol class="refund-steps">
                 <li><span class="refund-num" aria-hidden="true">1</span><span>PayPal pays the money back to the card.</span></li>
-                <li><span class="refund-num" aria-hidden="true">2</span><span>The ledger still thinks PayPal holds it.</span></li>
+                <li><span class="refund-num" aria-hidden="true">2</span><span>Your books still say PayPal holds it.</span></li>
                 <li><span class="refund-num" aria-hidden="true">3</span><span>The next day close finds the gap.</span></li>
             </ol>
         </div>
@@ -86,7 +85,7 @@
                 <label>Amount in USD
                     <span class="money-input"><span aria-hidden="true">$</span><input type="text" name="amount" inputmode="decimal" placeholder="5.00" required pattern="\$?\s*\d{1,9}(\.\d{1,2})?"></span>
                 </label>
-                <label>Note to payer
+                <label>Note to the customer
                     <input type="text" name="note" maxlength="255" placeholder="Sorry about the wait, here is $5 back">
                 </label>
                 <button type="submit" class="danger">Refund at PayPal, not in the ledger</button>

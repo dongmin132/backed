@@ -5,7 +5,7 @@
     <header class="page-header">
         <div>
             <h1>Dashboard</h1>
-            <p class="page-context">What the shop owes its customers, and what PayPal holds for it.</p>
+            <p class="page-context">What your customers have with you, and what PayPal holds for it.</p>
         </div>
     </header>
 
@@ -14,11 +14,11 @@
             <span class="stat-label">Owed to customers</span>
             <span class="money money-xl" th:text="${@fmt.money(owedCents)}">$0.00</span>
             <span class="stat-note cluster" th:if="${owedCents != prepaidControlCents}">
-                <span class="badge bad">Mismatch</span> ledger says <span class="num" th:text="${@fmt.money(prepaidControlCents)}">$0.00</span>
+                <span class="badge bad">Doesn't match</span> your books say <span class="num" th:text="${@fmt.money(prepaidControlCents)}">$0.00</span>
             </span>
             <span class="stat-note muted cluster" th:unless="${owedCents != prepaidControlCents}">
-                <span class="badge ok">Matches the ledger</span>
-                <span>All customer balances added up</span>
+                <span class="badge ok">Matches your books</span>
+                <span>Every customer balance, added up</span>
             </span>
         </div>
 
@@ -26,8 +26,8 @@
             <li>
                 <span class="status-icon ok" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></span>
                 <span class="status-text">
-                    <span class="status-title">Held at PayPal, per the ledger</span>
-                    <span class="status-detail">Capture net amounts minus refunds</span>
+                    <span class="status-title">Held at PayPal</span>
+                    <span class="status-detail">Card payments after fees, minus refunds</span>
                 </span>
                 <span class="status-value money money-md" th:text="${@fmt.money(paypalCashCents)}">$0.00</span>
             </li>
@@ -41,14 +41,14 @@
                 </span>
                 <span class="status-text">
                     <span class="status-title">Last close</span>
-                    <span class="status-detail" th:if="${lastClose == null}">The day has not been closed yet</span>
+                    <span class="status-detail" th:if="${lastClose == null}">Today hasn't been closed yet</span>
                     <span class="status-detail" th:if="${lastClose != null}">
                         <span th:text="${@fmt.date(lastClose.businessDate)}">2026-01-01</span>
                         by <span th:text="${@fmt.actor(lastClose.runBy)}">maker</span>
                     </span>
                 </span>
                 <span class="status-value">
-                    <span class="badge plain" th:if="${lastClose == null}">Not run</span>
+                    <span class="badge plain" th:if="${lastClose == null}">Not yet</span>
                     <span class="badge" th:if="${lastClose != null}" th:classappend="${@fmt.tone(lastClose.status)}" th:text="${@fmt.label(lastClose.status)}">Closed</span>
                 </span>
             </li>
@@ -61,7 +61,7 @@
                     <span class="status-title">Needs attention</span>
                     <span class="status-detail cluster">
                         <span class="badge" th:classappend="${openBreaks > 0} ? 'bad' : 'ok'" th:text="${@fmt.count(openBreaks, 'open break', 'open breaks')}">0 open breaks</span>
-                        <span class="badge" th:classappend="${inDoubtTopups > 0} ? 'watch' : 'ok'" th:text="${@fmt.count(inDoubtTopups, 'top-up in doubt', 'top-ups in doubt')}">0 top-ups in doubt</span>
+                        <span class="badge" th:classappend="${inDoubtTopups > 0} ? 'watch' : 'ok'" th:text="${@fmt.count(inDoubtTopups, 'top-up waiting on PayPal', 'top-ups waiting on PayPal')}">0 top-ups waiting on PayPal</span>
                     </span>
                 </span>
             </li>
@@ -71,7 +71,7 @@
     <section class="card">
         <div class="panel-head">
             <h2>Customers</h2>
-            <span class="muted">Each customer has a private page with their balance</span>
+            <span class="muted">Each one has a private page to top up and cash out</span>
         </div>
         <table class="table">
             <thead>

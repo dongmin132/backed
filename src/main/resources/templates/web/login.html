@@ -7,14 +7,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap">
+    <link rel="icon" type="image/svg+xml" th:href="@{/img/favicon.svg}">
     <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body class="login">
 <main class="login-shell">
     <div class="login-hero">
-        <!--/* The logo is not chosen yet: swap the contents of .brand-mark. */-->
-        <h1 class="brand brand-large"><span class="brand-mark">Backed</span></h1>
-        <p class="lead">Prepaid balances, closed against PayPal every day.</p>
+        <h1 class="brand brand-large"><span class="brand-mark"><svg class="logo-mark" aria-hidden="true" viewBox="0 0 20 14"><rect class="bar-books" width="20" height="5" rx="2.5"/><rect class="bar-paypal" y="9" width="20" height="5" rx="2.5"/></svg><span>Backed</span></span></h1>
+        <p class="lead">Customer balances that match PayPal, checked every day.</p>
         <div class="match-card" aria-hidden="true">
             <div class="match-row"><span>Books</span><span class="match-bar"></span></div>
             <div class="match-row"><span>PayPal</span><span class="match-bar"></span></div>
@@ -26,7 +26,7 @@
         <section class="card panel-strong">
             <h2>Sign in</h2>
             <p class="flash error" role="alert" th:if="${param.error}">Wrong user name or password.</p>
-            <p class="flash notice" role="status" th:if="${param.logout}">You are signed out.</p>
+            <p class="flash notice" role="status" th:if="${param.logout}">You're signed out.</p>
             <form th:action="@{/login}" method="post" class="stack">
                 <label>User name
                     <input type="text" name="username" autocomplete="username" required autofocus>
@@ -44,17 +44,17 @@
             <ul class="people">
                 <li>
                     <span class="avatar clerk" aria-hidden="true">cl</span>
-                    <span class="person-text"><span class="person-name mono">clerk</span><span class="person-role">Spend balances at the counter</span></span>
+                    <span class="person-text"><span class="person-name mono">clerk</span><span class="person-role">Takes payment at the counter</span></span>
                     <span class="badge plain">Clerk</span>
                 </li>
                 <li>
                     <span class="avatar maker" aria-hidden="true">mk</span>
-                    <span class="person-text"><span class="person-name mono">maker</span><span class="person-role">Run the day close, request and prepare corrections</span></span>
+                    <span class="person-text"><span class="person-name mono">maker</span><span class="person-role">Closes the day and suggests fixes</span></span>
                     <span class="badge plain">Maker</span>
                 </li>
                 <li>
                     <span class="avatar checker" aria-hidden="true">ck</span>
-                    <span class="person-text"><span class="person-name mono">checker</span><span class="person-role">Approve corrections prepared by the maker</span></span>
+                    <span class="person-text"><span class="person-name mono">checker</span><span class="person-role">Checks and approves the maker's fixes</span></span>
                     <span class="badge plain">Checker</span>
                 </li>
             </ul>

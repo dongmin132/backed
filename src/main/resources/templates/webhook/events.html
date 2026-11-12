@@ -6,11 +6,10 @@
 
     <header class="page-header">
         <div>
-            <h1>PayPal webhook events</h1>
+            <h1>Messages from PayPal</h1>
             <p class="page-context">
-                Each event is stored once by its id and processed once. Webhooks never post to the ledger;
-                anything they mention that the ledger does not know is checked by the next
-                <a th:href="@{/close}">day close</a>.
+                PayPal tells us here when a payment changes. Each message is kept once. They never change your
+                books: the next <a th:href="@{/close}">day close</a> checks anything they mention.
             </p>
         </div>
         <div class="page-actions">
@@ -27,8 +26,8 @@
 
         <div class="empty-state" th:if="${#lists.isEmpty(events)}">
             <div class="empty-copy">
-                <h3 class="empty-title">No events received yet.</h3>
-                <p class="empty-text">PayPal sends events here as its payments change. Each one is kept once, by its id.</p>
+                <h3 class="empty-title">Nothing from PayPal yet.</h3>
+                <p class="empty-text">PayPal sends a message here when a payment changes. Each one is kept once.</p>
             </div>
             <div class="empty-ghost" aria-hidden="true"><span></span><span></span></div>
         </div>

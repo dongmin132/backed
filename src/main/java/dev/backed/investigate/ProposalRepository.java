@@ -81,6 +81,16 @@ public class ProposalRepository {
         return out;
     }
 
+    /** The id of the newest proposal on each break, whatever its status. */
+    public Map<Long, Long> latestByBreak() {
+        Map<Long, Long> out = new HashMap<>();
+        jdbc.sql("select break_id, max(id) as id from proposals group by break_id")
+                .query((ResultSet rs) -> {
+                    out.put(rs.getLong("break_id"), rs.getLong("id"));
+                });
+        return out;
+    }
+
     public Optional<Proposal> findById(long id) {
         return jdbc.sql("select * from proposals where id = :id").param("id", id).query(this::map).optional();
     }

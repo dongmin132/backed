@@ -10,7 +10,7 @@
                 <h1>Ledger</h1>
                 <span class="ledger-count" th:text="${@fmt.count(#lists.size(entries), 'entry', 'entries')}">3 entries</span>
             </div>
-            <p class="page-context">Each card is one entry: its lines, and who stands behind it.</p>
+            <p class="page-context">Each card is one change to the money: what moved, and who made it.</p>
         </div>
         <div class="page-actions" th:unless="${#lists.isEmpty(accounts)}"
              th:with="dr=${#aggregates.sum(accounts.![debitCents]).longValue()}, cr=${#aggregates.sum(accounts.![creditCents]).longValue()}">
@@ -28,7 +28,7 @@
     </header>
 
     <p class="flash error" role="alert" th:unless="${#lists.isEmpty(unbalanced)}">
-        Entries that do not balance: <span th:text="${unbalanced}">[]</span>
+        These entries don't add up: <span th:text="${unbalanced}">[]</span>
     </p>
 
     <section class="journal" aria-labelledby="journal-title">
@@ -65,7 +65,7 @@
         <div class="empty-state" th:if="${#lists.isEmpty(entries)}">
             <div class="empty-copy">
                 <h2 class="empty-title">No entries yet.</h2>
-                <p class="empty-text">A top-up, a counter sale or a cash-out each writes one balanced entry here.</p>
+                <p class="empty-text">Every top-up, sale at the counter and cash-out shows up here.</p>
             </div>
             <div class="empty-ghost" aria-hidden="true"><span></span><span></span></div>
         </div>
@@ -131,7 +131,7 @@
                         <svg th:if="${balanced}" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>
                         <svg th:unless="${balanced}" viewBox="0 0 24 24"><path d="M12 6v8"/><path d="M12 18.5v0.5"/></svg>
                     </span>
-                    <span th:text="${(balanced ? 'Balances, ' : 'Does not balance, ') + @fmt.money(e.totalDebits()) + (balanced ? ' = ' : ' and ') + @fmt.money(e.totalCredits())}">Balances, $50.00 = $50.00</span>
+                    <span th:text="${(balanced ? 'Balances, ' : 'Doesn’t balance, ') + @fmt.money(e.totalDebits()) + (balanced ? ' = ' : ' and ') + @fmt.money(e.totalCredits())}">Balances, $50.00 = $50.00</span>
                 </div>
 
                 <div class="entry-effect" th:each="l : ${e.lines}" th:if="${l.customerName != null}">
@@ -166,7 +166,7 @@
                             <svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg>
                         </span>
                         <span class="who-text">
-                            <span class="who-role" th:text="${e.approvedBy != null and e.approvedBy != e.createdBy} ? 'Approved by, a different person' : 'Approved by'">Approved by</span>
+                            <span class="who-role" th:text="${e.approvedBy != null and e.approvedBy != e.createdBy} ? 'Approved by someone else' : 'Approved by'">Approved by</span>
                             <span class="who-name" th:text="${e.approvedBy != null} ? ${@fmt.actor(e.approvedBy)} : 'Not needed'">Not needed</span>
                         </span>
                     </div>
@@ -188,7 +188,7 @@
     <section class="card ledger-accounts" aria-labelledby="accounts-title">
         <div class="panel-head">
             <h2 id="accounts-title">Account balances</h2>
-            <span class="muted">Every debit has a matching credit, so the two columns add up to the same total.</span>
+            <span class="muted">Both columns always come to the same total.</span>
         </div>
         <div class="table-well">
             <table class="table compact">

@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Proposals', ~{::main})}">
 <body>
-<main class="container">
+<main class="container doc-page">
     <link rel="stylesheet" th:href="@{/css/investigate.css}">
+    <div class="doc-stack">
     <header class="page-header">
         <div>
             <h1>Proposals</h1>
@@ -48,6 +49,7 @@
             </th:block>
         </ul>
     </section>
+    </div>
 
     <div th:replace="~{investigate/fragments :: thinking}"></div>
 </main>

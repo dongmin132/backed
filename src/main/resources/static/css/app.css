@@ -224,7 +224,7 @@ code {
 }
 .rail::-webkit-scrollbar { display: none; }
 
-/* The wordmark. The logo is not chosen yet: swap the contents of .brand-mark. */
+/* The wordmark: .brand-mark holds the logo (.logo-mark, below) and the word. */
 .brand {
   color: var(--text);
   font-weight: var(--fw-black);
@@ -234,6 +234,28 @@ code {
 }
 .brand:hover { color: var(--text); text-decoration: none; }
 .brand-mark { display: inline-flex; align-items: center; gap: 6px; }
+
+/* The logo: two bars of equal length, the books (white) over PayPal (mint), that agree.
+   Inline SVG with viewBox 0 0 20 14, sized from the wordmark's font size. */
+.logo-mark { flex: none; display: block; width: 1.05em; height: 0.735em; }
+.logo-mark .bar-books { fill: #ffffff; }
+.logo-mark .bar-paypal { fill: var(--ok); }
+.rail .brand { font-size: 16px; }
+.rail .brand-mark { gap: 5px; }
+.brand-large .brand-mark { gap: 0.3em; }
+.brand-large .logo-mark .bar-paypal { filter: drop-shadow(0 0 6px rgba(142, 240, 200, 0.45)); }
+.brand-tile {
+  flex: 0 0 38px;
+  height: 38px;
+  border-radius: var(--r-sm);
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--shadow-tile);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+}
 
 .nav { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 0 6px; }
 .nav-item {

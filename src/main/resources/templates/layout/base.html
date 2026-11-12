@@ -12,6 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap">
+    <link rel="icon" type="image/svg+xml" th:href="@{/img/favicon.svg}">
     <link rel="stylesheet" th:href="@{/css/app.css}">
     <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js" defer></script>
     <script th:src="@{/js/csrf.js}" defer></script>
@@ -19,8 +20,8 @@
 <body>
 <div class="shell">
     <aside class="rail">
-        <!--/* The logo is not chosen yet: swap the contents of .brand-mark. */-->
-        <a class="brand" th:href="@{/}" aria-label="Backed, dashboard"><span class="brand-mark">Backed</span></a>
+        <!--/* The logo, "two bars": the books and PayPal, the same length. Styled by .logo-mark in app.css. */-->
+        <a class="brand" th:href="@{/}" aria-label="Backed, dashboard"><span class="brand-mark"><svg class="logo-mark" aria-hidden="true" viewBox="0 0 20 14"><rect class="bar-books" width="20" height="5" rx="2.5"/><rect class="bar-paypal" y="9" width="20" height="5" rx="2.5"/></svg><span>Backed</span></span></a>
         <nav class="nav" aria-label="Main">
             <a class="nav-item" th:href="@{/}" th:classappend="${currentPath == '/'} ? 'active'"
                th:attr="aria-current=${currentPath == '/'} ? 'page' : null">
@@ -88,8 +89,8 @@
         </header>
         <div class="config-banner" role="status" th:if="${currentUser != null and (!paypalConfigured or !aiConfigured)}">
             <div class="config-banner-inner">
-                <span th:unless="${paypalConfigured}">PayPal sandbox credentials are not set, so every PayPal call will fail:
-                    set <code>PAYPAL_CLIENT_ID</code> and <code>PAYPAL_CLIENT_SECRET</code>.</span>
+                <span th:unless="${paypalConfigured}">PayPal isn't connected yet, so no payment will go through.
+                    Set <code>PAYPAL_CLIENT_ID</code> and <code>PAYPAL_CLIENT_SECRET</code>.</span>
                 <span th:unless="${aiConfigured}" th:text="${aiNotConfiguredReason}">AI investigator is not configured: set
                     OPENAI_API_KEY (OpenAI) or ANTHROPIC_API_KEY (Claude).</span>
             </div>

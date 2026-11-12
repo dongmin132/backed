@@ -7,10 +7,10 @@
     <header class="page-header">
         <div>
             <h1>Top-ups</h1>
-            <p class="page-context">Customers add money by card on their private page. This is what PayPal said about each one.</p>
+            <p class="page-context">Customers add money by card on their own page. Here's what PayPal said about each one.</p>
         </div>
         <div class="page-actions">
-            <a class="btn quiet" th:href="@{/close/webhooks}">PayPal webhooks</a>
+            <a class="btn quiet" th:href="@{/close/webhooks}">Messages from PayPal</a>
             <a class="btn" th:if="${#strings.contains(currentRoles, 'MAKER')}" th:href="@{/admin/faults}">Demo faults</a>
         </div>
     </header>
@@ -26,11 +26,11 @@
                   th:text="${(name.substring(0, 1) + name.substring(name.lastIndexOf(' ') + 1, name.lastIndexOf(' ') + 2)).toUpperCase()}">PR</span>
             <div class="unknown-who">
                 <h2 th:text="${name}">Priya Raman</h2>
-                <span class="unknown-sub" th:text="${'Top-up ' + @fmt.money(t.amountCents) + ', not booked yet'}">Top-up $20.00, not booked yet</span>
+                <span class="unknown-sub" th:text="${'Top-up of ' + @fmt.money(t.amountCents) + ', not on the balance yet'}">Top-up of $20.00, not on the balance yet</span>
             </div>
             <span class="unknown-chip">
                 <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path class="fill" d="M12 3.5a8.5 8.5 0 0 1 0 17z"/></svg>
-                Outcome unknown
+                Not sure yet
             </span>
         </header>
 
@@ -46,23 +46,23 @@
                 <li class="step-lost">
                     <span class="step-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path class="fill" d="M12 4a8 8 0 0 1 0 16z"/></svg></span>
                     <span class="step-text">
-                        <span class="step-title" th:if="${t.state.name() == 'IN_DOUBT'}">PayPal's answer was lost on the way back</span>
-                        <span class="step-title" th:unless="${t.state.name() == 'IN_DOUBT'}">PayPal has not answered yet</span>
+                        <span class="step-title" th:if="${t.state.name() == 'IN_DOUBT'}">PayPal's answer never reached us</span>
+                        <span class="step-title" th:unless="${t.state.name() == 'IN_DOUBT'}">PayPal hasn't answered yet</span>
                         <span class="step-detail" th:if="${t.failureReason != null}" th:text="${t.failureReason}">Read timed out</span>
                     </span>
                 </li>
                 <li class="step-next">
                     <span class="step-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 7l5 5-5 5"/></svg></span>
                     <span class="step-text">
-                        <span class="step-title">Next: ask PayPal again with the same request</span>
-                        <span class="step-detail">PayPal sees it is the same top-up, so no double charge.</span>
+                        <span class="step-title">Next, we ask PayPal again</span>
+                        <span class="step-detail">PayPal knows it's the same top-up, so the card isn't charged twice.</span>
                     </span>
                 </li>
                 <li class="step-later">
                     <span class="step-mark" aria-hidden="true"></span>
                     <span class="step-text">
-                        <span class="step-title">Then <span th:text="${name.split(' ')[0]}">Priya</span>'s balance gets
-                            <span th:text="${@fmt.money(t.amountCents)}">$20.00</span>, or it closes as not paid</span>
+                        <span class="step-title">Then <span th:text="${name.split(' ')[0]}">Priya</span> gets
+                            <span th:text="${@fmt.money(t.amountCents)}">$20.00</span>, or it's marked not paid</span>
                     </span>
                 </li>
             </ol>
@@ -75,14 +75,14 @@
                 </div>
                 <p class="unknown-warn">
                     <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
-                    <span>While this is open, do not take a second payment or give money back by hand.</span>
+                    <span>Please don't take a second payment or refund by hand while this is open.</span>
                 </p>
                 <div class="unknown-act">
-                    <span class="unknown-note" th:if="${#strings.contains(currentRoles, 'MAKER')}">Backed asks again by itself. Resolve now asks PayPal this minute.</span>
-                    <span class="unknown-note" th:unless="${#strings.contains(currentRoles, 'MAKER')}">Backed asks again by itself, and a maker can ask PayPal now.</span>
+                    <span class="unknown-note" th:if="${#strings.contains(currentRoles, 'MAKER')}">We ask again by ourselves. You can ask now instead of waiting.</span>
+                    <span class="unknown-note" th:unless="${#strings.contains(currentRoles, 'MAKER')}">We ask again by ourselves, and a maker can ask PayPal now.</span>
                     <form th:if="${#strings.contains(currentRoles, 'MAKER') and (t.state.name() == 'IN_DOUBT' or t.state.name() == 'CREATED')}"
                           th:action="@{/topups/{id}/resolve(id=${t.id})}" method="post" class="inline">
-                        <button type="submit" class="primary">Resolve now</button>
+                        <button type="submit" class="primary">Ask PayPal now</button>
                     </form>
                 </div>
             </div>
@@ -97,18 +97,18 @@
                       th:text="${inDoubtCount + ' in doubt'}">0 in doubt</span>
             </span>
             <span class="stat-note muted">
-                <span class="num" th:text="${@fmt.money(inDoubtCents)}">$0.00</span> sent to PayPal with no answer
+                <span class="num" th:text="${@fmt.money(inDoubtCents)}">$0.00</span> sent to PayPal, no answer yet
             </span>
         </div>
         <div class="stat">
             <span class="stat-label">Captured</span>
             <span class="stat-value num" th:text="${capturedCount}">0</span>
-            <span class="stat-note muted">Credited to customers</span>
+            <span class="stat-note muted">Added to balances</span>
         </div>
         <div class="stat">
             <span class="stat-label">Not charged</span>
             <span class="stat-value num" th:text="${notChargedCount}">0</span>
-            <span class="stat-note muted">Declined, unreachable, or never captured</span>
+            <span class="stat-note muted">Declined, or PayPal couldn't be reached</span>
         </div>
     </section>
 
@@ -121,7 +121,7 @@
         <div class="empty-state" th:if="${#lists.isEmpty(topups)}">
             <div class="empty-copy">
                 <h3 class="empty-title">No top-ups yet.</h3>
-                <p class="empty-text">When a customer adds money by card on their private page, it shows up here with PayPal's answer.</p>
+                <p class="empty-text">When a customer adds money on their page, it shows up here with PayPal's answer.</p>
             </div>
             <div class="empty-ghost" aria-hidden="true"><span></span><span></span></div>
         </div>
@@ -144,7 +144,7 @@
                 <div class="topup-money">
                     <span class="money money-md" th:text="${@fmt.money(t.amountCents)}">$0.00</span>
                     <span class="topup-split" th:if="${t.feeCents != null or t.netCents != null}">
-                        PayPal fee <b th:text="${@fmt.money(t.feeCents)}">$0.00</b>, net <b th:text="${@fmt.money(t.netCents)}">$0.00</b>
+                        PayPal fee <b th:text="${@fmt.money(t.feeCents)}">$0.00</b>, you keep <b th:text="${@fmt.money(t.netCents)}">$0.00</b>
                     </span>
                 </div>
                 <dl class="topup-ids">
@@ -156,9 +156,9 @@
         </ul>
 
         <p class="topup-footnote">
-            Resolve re-sends the original request to PayPal with the same PayPal-Request-Id. If PayPal already
-            captured it, the same capture comes back and the customer is credited once; the day close does
-            the same for every top-up still in doubt.
+            Asking again sends PayPal the same request id as the first time. If PayPal already took the money,
+            it sends back that same payment and the customer is credited once. The day close does this for every
+            top-up still waiting.
         </p>
     </section>
 </main>

@@ -4,8 +4,7 @@
 <main class="container narrow phone">
 
     <header class="hello" th:with="parts=${#strings.arraySplit(customer.name, ' ')}">
-        <!--/* The logo is not chosen yet: swap the contents of .brand-mark. */-->
-        <span class="brand-mark hello-mark" role="img" aria-label="Backed">b</span>
+        <span class="brand-tile" role="img" aria-label="Backed"><svg class="logo-mark" aria-hidden="true" viewBox="0 0 20 14"><rect class="bar-books" width="20" height="5" rx="2.5"/><rect class="bar-paypal" y="9" width="20" height="5" rx="2.5"/></svg></span>
         <div class="hello-text">
             <span class="hello-greet">Good to see you</span>
             <h1 th:text="${customer.name}">Demo Customer A</h1>
@@ -36,7 +35,7 @@
 
     <p class="counter-hint">
         <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3M21 14v7h-7"/></svg>
-        <span>Pay at the counter by showing this card</span>
+        <span>Show this card at the counter to pay</span>
     </p>
 
     <nav class="quick" aria-label="Move money">
@@ -69,7 +68,7 @@
         </details>
         <div class="moves-empty" th:if="${#lists.isEmpty(history)}">
             <p class="moves-empty-title">Nothing yet.</p>
-            <p class="muted small">Top-ups and purchases at the counter will show here.</p>
+            <p class="muted small">Money you add and things you buy show up here.</p>
         </div>
     </section>
 
@@ -87,7 +86,7 @@
             </label>
             <button type="submit" class="primary">Top up</button>
         </form>
-        <p class="muted small">Paid with your saved sandbox card through PayPal.</p>
+        <p class="muted small">Paid with your saved test card through PayPal.</p>
     </section>
 
     <section class="card sheet" id="cash-out" aria-labelledby="cash-title">
@@ -103,7 +102,7 @@
             <input type="hidden" name="amount" value="all">
             <button type="submit" class="link">Cash out everything (<span th:text="${@fmt.money(balanceCents)}">$0.00</span>)</button>
         </form>
-        <p class="muted small">Refunded to the card you paid with, newest top-up first.</p>
+        <p class="muted small">Goes back to the cards you paid with, newest first.</p>
     </section>
 
     <section class="card sheet" aria-labelledby="pay-title" th:unless="${#lists.isEmpty(topups) and #lists.isEmpty(cashouts)}">

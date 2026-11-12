@@ -1,13 +1,19 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Proposal', ~{::main})}">
 <body>
-<main class="container proposal-page" th:with="p=${page.proposal}, b=${page.brk}, out=${page.output},
+<!--/* One proposal as a single document, in the order of the day report: who signs it, what it changes in the
+       books, the investigator's reasoning, then the evidence it read. */-->
+<main class="container proposal-page doc-page" th:with="p=${page.proposal}, b=${page.brk}, out=${page.output},
                                   needsHuman=${page.proposal.treatment != null and page.proposal.treatment.name() == 'NEEDS_HUMAN'}">
     <link rel="stylesheet" th:href="@{/css/investigate.css}">
-    <header class="page-header">
-        <div class="proposal-title">
+    <article class="doc" aria-labelledby="proposal-title">
+        <header class="doc-head proposal-title">
+            <nav class="doc-crumbs" aria-label="Back to">
+                <a th:href="@{/close}">Day report</a>
+                <a th:href="@{/proposals}">All proposals</a>
+            </nav>
             <div class="proposal-title-row">
-                <h1 th:text="${'Proposal #' + p.id}">Proposal #1</h1>
+                <h1 id="proposal-title" th:text="${'Proposal #' + p.id}">Proposal #1</h1>
                 <span class="badge badge-lg" th:classappend="${needsHuman} ? 'watch' : ${@fmt.tone(p.status)}"
                       th:text="${needsHuman} ? 'Needs a human' : ${@fmt.label(p.status)}">Pending approval</span>
                 <span class="badge badge-lg outline-soft" th:if="${p.treatment != null and !needsHuman}" th:text="${p.treatment.label()}">Goodwill</span>
@@ -17,34 +23,29 @@
                 <span th:text="${#strings.toLowerCase(@fmt.label(b.kind))}">unbooked refund</span> of
                 <span th:text="${@fmt.money(b.amountCents)}">$4.00</span> at PayPal
             </p>
+        </header>
+        <div th:replace="~{layout/flash :: flash}"></div>
+
+        <div class="callout watch" th:if="${needsHuman}">
+            <span class="callout-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 6v8M12 18.5v0.5"/></svg></span>
+            <div><strong>The investigator asked for a person to decide.</strong> It found no treatment the evidence supports
+            well enough, so no entry was drafted. Read its reasoning below, then decide by hand or investigate again.</div>
         </div>
-        <div class="page-actions">
-            <a th:href="@{/proposals}" class="btn quiet">All proposals</a>
+        <div class="callout bad" th:if="${p.status.name() == 'REJECTED_BY_VALIDATOR' and !needsHuman}">
+            <span class="callout-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></span>
+            <div><strong>Rejected by the validator.</strong> This proposal cannot be approved:
+            <ul><li th:each="line : ${page.rejectionReasons()}" th:text="${line}"></li></ul></div>
         </div>
-    </header>
-    <div th:replace="~{layout/flash :: flash}"></div>
 
-    <div class="callout watch" th:if="${needsHuman}">
-        <span class="callout-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 6v8M12 18.5v0.5"/></svg></span>
-        <div><strong>The investigator asked for a person to decide.</strong> It found no treatment the evidence supports
-        well enough, so no entry was drafted. Read its reasoning below, then decide by hand or investigate again.</div>
-    </div>
-    <div class="callout bad" th:if="${p.status.name() == 'REJECTED_BY_VALIDATOR' and !needsHuman}">
-        <span class="callout-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></span>
-        <div><strong>Rejected by the validator.</strong> This proposal cannot be approved:
-        <ul><li th:each="line : ${page.rejectionReasons()}" th:text="${line}"></li></ul></div>
-    </div>
+        <section th:replace="~{investigate/fragments :: relay(${page})}"></section>
 
-    <section th:replace="~{investigate/fragments :: relay(${page})}"></section>
+        <th:block th:if="${page.chosen != null or page.alternative != null}">
+            <section th:replace="~{investigate/fragments :: diff(${page})}"></section>
+        </th:block>
 
-    <th:block th:if="${page.chosen != null or page.alternative != null}">
-        <section th:replace="~{investigate/fragments :: diff(${page})}"></section>
-    </th:block>
-
-    <div class="proposal-split">
         <section th:replace="~{investigate/fragments :: judgement(${page})}"></section>
         <section th:replace="~{investigate/fragments :: evidence(${page})}"></section>
-    </div>
+    </article>
 </main>
 </body>
 </html>

@@ -48,7 +48,7 @@ class CashoutWebTest extends AbstractDbTest {
         mvc.perform(get("/cashouts").with(user("maker").roles("MAKER")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString(CashoutService.legRequestId(cashoutId, 1))))
-                .andExpect(content().string(containsString("Run relay now")))
+                .andExpect(content().string(containsString("Send refunds now")))
                 .andExpect(content().string(containsString("Pending")));
 
         mvc.perform(post("/cashouts/relay").with(user("maker").roles("MAKER")).with(csrf()))

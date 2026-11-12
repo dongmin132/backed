@@ -7,7 +7,7 @@
     <header class="page-header">
         <div>
             <h1>Counter</h1>
-            <p class="page-context">Charge a customer's prepaid balance at the till.</p>
+            <p class="page-context">Take payment from a customer's balance.</p>
         </div>
     </header>
     <div th:replace="~{layout/flash :: flash}"></div>
@@ -15,7 +15,7 @@
     <section class="card panel-strong charge-panel" aria-labelledby="charge-title">
         <div class="panel-head">
             <h2 id="charge-title">Charge a balance</h2>
-            <span class="muted">Pick who is paying, then the amount</span>
+            <span class="muted">Pick who's paying, then the amount</span>
         </div>
         <form th:action="@{/pos}" method="post" class="charge-form">
             <input type="hidden" name="requestId" th:value="${requestId}">
@@ -55,7 +55,7 @@
                             type="text" name="amount" inputmode="decimal" placeholder="4.50" required
                             pattern="\$?\s*\d{1,9}(\.\d{1,2})?"></span>
                 </label>
-                <label class="memo-field">Memo
+                <label class="memo-field">What they bought
                     <input type="text" name="memo" maxlength="200" placeholder="Coffee and a pastry">
                 </label>
                 <button type="submit" class="primary btn-lg charge-button">Charge</button>
@@ -66,7 +66,7 @@
             <span class="status-icon ok" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
             </span>
-            <p class="muted small">The balance is taken in one step that cannot go below zero. A sale the balance cannot cover is refused and nothing is written.</p>
+            <p class="muted small">A balance never goes below zero. If it can't cover the sale, nothing is charged.</p>
         </div>
     </section>
 
@@ -78,7 +78,7 @@
         <div class="table-well">
             <table class="table">
                 <thead>
-                <tr><th>When</th><th>Customer</th><th>Memo</th><th>By</th><th>Status</th><th class="num">Amount</th></tr>
+                <tr><th>When</th><th>Customer</th><th>For</th><th>By</th><th>Status</th><th class="num">Amount</th></tr>
                 </thead>
                 <tbody>
                 <tr th:each="s : ${spends}">

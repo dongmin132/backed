@@ -9,28 +9,26 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap">
+    <link rel="icon" type="image/svg+xml" th:href="@{/img/favicon.svg}">
     <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body>
 <div class="error-shell">
-    <!--/* The logo is not chosen yet: swap the contents of .brand-mark. */-->
-    <a class="brand" th:href="@{/}"><span class="brand-mark">Backed</span></a>
+    <a class="brand" th:href="@{/}"><span class="brand-mark"><svg class="logo-mark" aria-hidden="true" viewBox="0 0 20 14"><rect class="bar-books" width="20" height="5" rx="2.5"/><rect class="bar-paypal" y="9" width="20" height="5" rx="2.5"/></svg><span>Backed</span></span></a>
     <main class="card panel-strong panel-hero">
         <p class="error-code"><span class="badge watch badge-lg" th:text="${status != null ? 'Error ' + status : 'Error'}">Error 500</span></p>
         <h1 th:switch="${status}">
-            <span th:case="403">Your role cannot do this</span>
-            <span th:case="404">Not found</span>
-            <span th:case="400">The request was not understood</span>
+            <span th:case="403">This isn't part of your role</span>
+            <span th:case="404">Nothing here</span>
+            <span th:case="400">Something in that form was off</span>
             <span th:case="*">Something went wrong</span>
         </h1>
         <p class="page-context" th:switch="${status}">
-            <span th:case="403">The maker runs top-up resolution, cash-out relays, the close and investigations. The
-                checker approves and dismisses proposals. The clerk works the counter. Sign in as the user whose role
-                fits the action.</span>
-            <span th:case="404">There is nothing at this address. It may have been typed wrong, or the item does not
-                exist.</span>
-            <span th:case="400">A value in the request was missing or had the wrong form.</span>
-            <span th:case="*">The server could not finish this request. The details are in the server log.</span>
+            <span th:case="403">The maker closes the day and sorts out top-ups and refunds. The checker approves
+                fixes. The clerk works the counter. Sign in as the one whose job this is.</span>
+            <span th:case="404">The address may be mistyped, or the page is gone.</span>
+            <span th:case="400">A value was missing or in the wrong form. Go back and try again.</span>
+            <span th:case="*">We couldn't finish that. The details are in the server log.</span>
         </p>
         <dl class="kv" th:if="${path != null}">
             <dt>Address</dt>
