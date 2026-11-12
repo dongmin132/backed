@@ -103,6 +103,15 @@ present; otherwise treat the refund as reducing `PAYPAL_CASH` by the gross refun
 Top-up: `CREATED → CAPTURED | DECLINED | IN_DOUBT`, `IN_DOUBT → CAPTURED | NOT_CAPTURED`.
 While a customer has an `IN_DOUBT` top-up, a new top-up for that customer is refused
 (the guard that stops the classic double charge).
+Top-up details (module `topup`): the request id is `topup-<id>`. A 4xx, or a 5xx / connection
+refused on the first attempt, ends in `DECLINED` with nothing charged (the single request did not
+take effect, so the customer may start a new top-up). Resolving re-sends the original request with the
+same request id: PayPal returns the original capture if it made one, or makes it now if the first
+request never arrived; a 4xx on the re-send means `NOT_CAPTURED`; a 5xx or timeout leaves it
+`IN_DOUBT`. A `CREATED` row untouched for 2 minutes (the app stopped mid-call) is resolved the same way.
+Amounts are $1.00 to $10,000.00. For reads (GET order, GET capture) a timeout counts as unavailable,
+and 408, 409 and 429 count as unavailable for every call. Live check of these assumptions:
+`./gradlew bootRun --args='--spring.profiles.active=sandbox-check'` (needs credentials).
 
 Cash-out: `REQUESTED → SETTLED | PARTIALLY_SETTLED | COMPENSATED`.
 Cash-out leg: `PENDING → DONE | IN_DOUBT | FAILED`, `IN_DOUBT → DONE | FAILED`.
