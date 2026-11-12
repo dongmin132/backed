@@ -9,50 +9,95 @@
     <meta name="_csrf" th:if="${_csrf != null}" th:content="${_csrf.token}">
     <meta name="_csrf_header" th:if="${_csrf != null}" th:content="${_csrf.headerName}">
     <title th:text="${title} + ' | Backed'">Backed</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap">
     <link rel="stylesheet" th:href="@{/css/app.css}">
     <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js" defer></script>
     <script th:src="@{/js/csrf.js}" defer></script>
 </head>
 <body>
-<header class="topbar">
-    <div class="topbar-inner">
-        <a class="brand" th:href="@{/}">Backed</a>
+<div class="shell">
+    <aside class="rail">
+        <!--/* The logo is not chosen yet: swap the contents of .brand-mark. */-->
+        <a class="brand" th:href="@{/}" aria-label="Backed, dashboard"><span class="brand-mark">Backed</span></a>
         <nav class="nav" aria-label="Main">
-            <a th:href="@{/}" th:classappend="${currentPath == '/'} ? 'active'">Dashboard</a>
+            <a class="nav-item" th:href="@{/}" th:classappend="${currentPath == '/'} ? 'active'"
+               th:attr="aria-current=${currentPath == '/'} ? 'page' : null">
+                <span class="nav-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="10" rx="2.5" fill="currentColor"/><rect x="13" y="3" width="8" height="6" rx="2.5" fill="currentColor" opacity="0.45"/><rect x="13" y="11" width="8" height="10" rx="2.5" fill="currentColor"/><rect x="3" y="15" width="8" height="6" rx="2.5" fill="currentColor" opacity="0.45"/></svg></span>
+                <span>Dashboard</span>
+            </a>
             <th:block th:with="clerk=${#strings.contains(currentRoles, 'CLERK')},
                                maker=${#strings.contains(currentRoles, 'MAKER')},
                                checker=${#strings.contains(currentRoles, 'CHECKER')}">
-            <a th:if="${clerk or maker}" th:href="@{/pos}" th:classappend="${#strings.startsWith(currentPath, '/pos')} ? 'active'">Counter</a>
-            <a th:if="${maker or checker}" th:href="@{/topups}" th:classappend="${#strings.startsWith(currentPath, '/topups')} ? 'active'">Top-ups</a>
-            <a th:if="${maker or checker}" th:href="@{/cashouts}" th:classappend="${#strings.startsWith(currentPath, '/cashouts')} ? 'active'">Cash-outs</a>
-            <a th:if="${maker or checker}" th:href="@{/close}" th:classappend="${#strings.startsWith(currentPath, '/close')} ? 'active'">Close</a>
-            <a th:if="${maker or checker}" th:href="@{/proposals}" th:classappend="${#strings.startsWith(currentPath, '/proposals')} ? 'active'">Proposals</a>
-            <a th:href="@{/ledger}" th:classappend="${#strings.startsWith(currentPath, '/ledger')} ? 'active'">Ledger</a>
-            <a th:if="${maker}" th:href="@{/admin/faults}" th:classappend="${#strings.startsWith(currentPath, '/admin')} ? 'active'">Faults</a>
+            <a class="nav-item" th:if="${clerk or maker}" th:href="@{/pos}" th:classappend="${#strings.startsWith(currentPath, '/pos')} ? 'active'"
+               th:attr="aria-current=${#strings.startsWith(currentPath, '/pos')} ? 'page' : null">
+                <span class="nav-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4.5 9h15l-1.2 9.4a3 3 0 0 1-3 2.6H8.7a3 3 0 0 1-3-2.6z" fill="currentColor" opacity="0.45"/><path d="M8.5 9V7.5a3.5 3.5 0 0 1 7 0V9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="4" y="8" width="16" height="3.2" rx="1.6" fill="currentColor"/></svg></span>
+                <span>Counter</span>
+            </a>
+            <a class="nav-item" th:if="${maker or checker}" th:href="@{/topups}" th:classappend="${#strings.startsWith(currentPath, '/topups')} ? 'active'"
+               th:attr="aria-current=${#strings.startsWith(currentPath, '/topups')} ? 'page' : null">
+                <span class="nav-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="6" fill="currentColor" opacity="0.4"/><rect x="10.8" y="7" width="2.4" height="10" rx="1.2" fill="currentColor"/><rect x="7" y="10.8" width="10" height="2.4" rx="1.2" fill="currentColor"/></svg></span>
+                <span>Top-ups</span>
+            </a>
+            <a class="nav-item" th:if="${maker or checker}" th:href="@{/cashouts}" th:classappend="${#strings.startsWith(currentPath, '/cashouts')} ? 'active'"
+               th:attr="aria-current=${#strings.startsWith(currentPath, '/cashouts')} ? 'page' : null">
+                <span class="nav-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="13" height="16" rx="4" fill="currentColor" opacity="0.4"/><path d="M9.5 12h10.5M16.5 8.5 20 12l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <span>Cash-outs</span>
+            </a>
+            <a class="nav-item" th:if="${maker or checker}" th:href="@{/close}" th:classappend="${#strings.startsWith(currentPath, '/close')} ? 'active'"
+               th:attr="aria-current=${#strings.startsWith(currentPath, '/close')} ? 'page' : null">
+                <span class="nav-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.3"/><path d="M7.8 12.3l2.9 2.9 5.5-5.7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <span>Close</span>
+            </a>
+            <a class="nav-item" th:if="${maker or checker}" th:href="@{/proposals}" th:classappend="${#strings.startsWith(currentPath, '/proposals')} ? 'active'"
+               th:attr="aria-current=${#strings.startsWith(currentPath, '/proposals')} ? 'page' : null">
+                <span class="nav-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="7.5" fill="currentColor" opacity="0.4"/><circle cx="10.5" cy="10.5" r="4" fill="none" stroke="currentColor" stroke-width="2.2"/><rect x="15.6" y="13.4" width="3" height="8.4" rx="1.5" transform="rotate(-45 17.1 17.6)" fill="currentColor"/></svg></span>
+                <span>Proposals</span>
+            </a>
+            <a class="nav-item" th:href="@{/ledger}" th:classappend="${#strings.startsWith(currentPath, '/ledger')} ? 'active'"
+               th:attr="aria-current=${#strings.startsWith(currentPath, '/ledger')} ? 'page' : null">
+                <span class="nav-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3.5" fill="currentColor" opacity="0.4"/><rect x="4" y="3" width="5" height="18" rx="2.5" fill="currentColor"/><rect x="11.5" y="7.5" width="6" height="2.2" rx="1.1" fill="currentColor"/><rect x="11.5" y="11.5" width="6" height="2.2" rx="1.1" fill="currentColor"/></svg></span>
+                <span>Ledger</span>
+            </a>
+            <a class="nav-item" th:if="${maker}" th:href="@{/admin/faults}" th:classappend="${#strings.startsWith(currentPath, '/admin')} ? 'active'"
+               th:attr="aria-current=${#strings.startsWith(currentPath, '/admin')} ? 'page' : null">
+                <span class="nav-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="2" y="6.5" width="20" height="11" rx="5.5" fill="currentColor" opacity="0.4"/><circle cx="16.2" cy="12" r="3.8" fill="currentColor"/></svg></span>
+                <span>Faults</span>
+            </a>
             </th:block>
         </nav>
-        <div class="session">
-            <span class="meta">Business date <strong th:text="${@fmt.date(businessDate)}">2026-01-01</strong></span>
-            <span class="meta" th:if="${currentUser != null}">
-                Signed in as <strong th:text="${currentUser}">maker</strong>
-                <span class="muted" th:text="${'(' + currentRoles + ')'}">(MAKER)</span>
-            </span>
-            <form th:if="${currentUser != null}" th:action="@{/logout}" method="post" class="inline">
-                <button type="submit" class="link">Sign out</button>
-            </form>
+    </aside>
+
+    <div class="workspace">
+        <header class="topstrip">
+            <span class="date-pill">Business date <strong th:text="${@fmt.date(businessDate)}">2026-01-01</strong></span>
+            <div class="session" th:if="${currentUser != null}">
+                <span class="person">
+                    <span class="avatar avatar-sm" aria-hidden="true" th:classappend="${currentUser}"
+                          th:text="${currentUser == 'maker' ? 'mk' : (currentUser == 'checker' ? 'ck' : (currentUser == 'clerk' ? 'cl' : (#strings.length(currentUser) > 1 ? #strings.substring(currentUser, 0, 2) : currentUser)))}">mk</span>
+                    <span class="person-text">
+                        <span class="meta">Signed in as <strong th:text="${currentUser}">maker</strong></span>
+                        <span class="person-role" th:text="${#strings.capitalize(#strings.toLowerCase(currentRoles))}">Maker</span>
+                    </span>
+                </span>
+                <form th:action="@{/logout}" method="post" class="inline">
+                    <button type="submit" class="quiet small">Sign out</button>
+                </form>
+            </div>
+        </header>
+        <div class="config-banner" role="status" th:if="${currentUser != null and (!paypalConfigured or !aiConfigured)}">
+            <div class="config-banner-inner">
+                <span th:unless="${paypalConfigured}">PayPal sandbox credentials are not set, so every PayPal call will fail:
+                    set <code>PAYPAL_CLIENT_ID</code> and <code>PAYPAL_CLIENT_SECRET</code>.</span>
+                <span th:unless="${aiConfigured}" th:text="${aiNotConfiguredReason}">AI investigator is not configured: set
+                    OPENAI_API_KEY (OpenAI) or ANTHROPIC_API_KEY (Claude).</span>
+            </div>
         </div>
-    </div>
-</header>
-<div class="config-banner" th:if="${currentUser != null and (!paypalConfigured or !aiConfigured)}">
-    <div class="config-banner-inner">
-        <span th:unless="${paypalConfigured}">PayPal sandbox credentials are not set, so every PayPal call will fail:
-            set <code>PAYPAL_CLIENT_ID</code> and <code>PAYPAL_CLIENT_SECRET</code>.</span>
-        <span th:unless="${aiConfigured}" th:text="${aiNotConfiguredReason}">AI investigator is not configured: set
-            OPENAI_API_KEY (OpenAI) or ANTHROPIC_API_KEY (Claude).</span>
+        <main th:replace="${content}">
+            Page content
+        </main>
     </div>
 </div>
-<main th:replace="${content}">
-    Page content
-</main>
 </body>
 </html>

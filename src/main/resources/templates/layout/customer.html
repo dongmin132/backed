@@ -1,22 +1,22 @@
 <!DOCTYPE html>
 <!--/* Customer layout: no staff navigation. Used as
   <html th:replace="~{layout/customer :: page('Title', ~{::main})}">
-*/-->
+  The page brings its own header (the customer's phone page greets them by name), so this layout
+  holds only the document head and the body. Styles: app.css (design system), then customer.css. */-->
 <html lang="en" xmlns:th="http://www.thymeleaf.org" th:fragment="page(title, content)">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="robots" content="noindex">
+    <meta name="theme-color" content="#0e0b24">
     <title th:text="${title} + ' | Backed'">Backed</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap">
     <link rel="stylesheet" th:href="@{/css/app.css}">
+    <link rel="stylesheet" th:href="@{/css/customer.css}">
 </head>
 <body class="customer">
-<header class="topbar">
-    <div class="topbar-inner">
-        <span class="brand">Backed</span>
-        <span class="meta">Your prepaid balance</span>
-    </div>
-</header>
 <main th:replace="${content}">
     Page content
 </main>

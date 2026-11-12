@@ -4,40 +4,62 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Sign in | Backed</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap">
     <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body class="login">
-<main class="container narrow">
-    <h1 class="brand-large">Backed</h1>
-    <p class="lead">Prepaid balances, closed against PayPal every day.</p>
+<main class="login-shell">
+    <div class="login-hero">
+        <!--/* The logo is not chosen yet: swap the contents of .brand-mark. */-->
+        <h1 class="brand brand-large"><span class="brand-mark">Backed</span></h1>
+        <p class="lead">Prepaid balances, closed against PayPal every day.</p>
+        <div class="match-card" aria-hidden="true">
+            <div class="match-row"><span>Books</span><span class="match-bar"></span></div>
+            <div class="match-row"><span>PayPal</span><span class="match-bar"></span></div>
+            <span class="match-ok"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Same to the cent</span>
+        </div>
+    </div>
 
-    <section class="card">
-        <h2>Sign in</h2>
-        <p class="flash error" role="alert" th:if="${param.error}">Wrong user name or password.</p>
-        <p class="flash notice" role="status" th:if="${param.logout}">You are signed out.</p>
-        <form th:action="@{/login}" method="post" class="stack">
-            <label>User name
-                <input type="text" name="username" autocomplete="username" required autofocus>
-            </label>
-            <label>Password
-                <input type="password" name="password" autocomplete="current-password" required>
-            </label>
-            <button type="submit" class="primary">Sign in</button>
-        </form>
-    </section>
+    <div class="login-forms">
+        <section class="card panel-strong">
+            <h2>Sign in</h2>
+            <p class="flash error" role="alert" th:if="${param.error}">Wrong user name or password.</p>
+            <p class="flash notice" role="status" th:if="${param.logout}">You are signed out.</p>
+            <form th:action="@{/login}" method="post" class="stack">
+                <label>User name
+                    <input type="text" name="username" autocomplete="username" required autofocus>
+                </label>
+                <label>Password
+                    <input type="password" name="password" autocomplete="current-password" required>
+                </label>
+                <button type="submit" class="primary">Sign in</button>
+            </form>
+        </section>
 
-    <section class="card">
-        <h2>Demo users</h2>
-        <p class="muted">Every demo user has the password <code>demo</code>.</p>
-        <table class="table">
-            <thead><tr><th>User</th><th>Role</th><th>Can do</th></tr></thead>
-            <tbody>
-            <tr><td><code>clerk</code></td><td><span class="badge plain">Clerk</span></td><td>Spend balances at the counter</td></tr>
-            <tr><td><code>maker</code></td><td><span class="badge plain">Maker</span></td><td>Run the day close, request and prepare corrections</td></tr>
-            <tr><td><code>checker</code></td><td><span class="badge plain">Checker</span></td><td>Approve corrections prepared by the maker</td></tr>
-            </tbody>
-        </table>
-    </section>
+        <section class="card">
+            <h2>Demo users</h2>
+            <p class="muted">Every demo user has the password <code>demo</code>.</p>
+            <ul class="people">
+                <li>
+                    <span class="avatar clerk" aria-hidden="true">cl</span>
+                    <span class="person-text"><span class="person-name mono">clerk</span><span class="person-role">Spend balances at the counter</span></span>
+                    <span class="badge plain">Clerk</span>
+                </li>
+                <li>
+                    <span class="avatar maker" aria-hidden="true">mk</span>
+                    <span class="person-text"><span class="person-name mono">maker</span><span class="person-role">Run the day close, request and prepare corrections</span></span>
+                    <span class="badge plain">Maker</span>
+                </li>
+                <li>
+                    <span class="avatar checker" aria-hidden="true">ck</span>
+                    <span class="person-text"><span class="person-name mono">checker</span><span class="person-role">Approve corrections prepared by the maker</span></span>
+                    <span class="badge plain">Checker</span>
+                </li>
+            </ul>
+        </section>
+    </div>
 </main>
 </body>
 </html>

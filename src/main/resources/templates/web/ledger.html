@@ -1,58 +1,231 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Ledger', ~{::main})}">
 <body>
-<main class="container">
-    <h1>Ledger</h1>
+<main class="container ledger-page">
+    <link rel="stylesheet" th:href="@{/css/ledger.css}">
+
+    <header class="page-header">
+        <div>
+            <div class="ledger-title">
+                <h1>Ledger</h1>
+                <span class="ledger-count" th:text="${@fmt.count(#lists.size(entries), 'entry', 'entries')}">3 entries</span>
+            </div>
+            <p class="page-context">Each card is one entry: its lines, and who stands behind it.</p>
+        </div>
+        <div class="page-actions" th:unless="${#lists.isEmpty(accounts)}"
+             th:with="dr=${#aggregates.sum(accounts.![debitCents]).longValue()}, cr=${#aggregates.sum(accounts.![creditCents]).longValue()}">
+            <a class="trial-pill" href="#accounts-title" th:classappend="${dr == cr} ? 'ok' : 'bad'">
+                <span class="trial-icon" aria-hidden="true">
+                    <svg th:if="${dr == cr}" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>
+                    <svg th:unless="${dr == cr}" viewBox="0 0 24 24"><path d="M12 6v8"/><path d="M12 18.5v0.5"/></svg>
+                </span>
+                <span class="trial-text">
+                    <span class="trial-label">All accounts</span>
+                    <span class="trial-sum" th:text="${'Debits ' + @fmt.money(dr) + (dr == cr ? ' = credits ' : ', credits ') + @fmt.money(cr)}">Debits $77.00 = credits $77.00</span>
+                </span>
+            </a>
+        </div>
+    </header>
 
     <p class="flash error" role="alert" th:unless="${#lists.isEmpty(unbalanced)}">
         Entries that do not balance: <span th:text="${unbalanced}">[]</span>
     </p>
 
-    <section class="card">
-        <h2>Account balances</h2>
-        <table class="table">
-            <thead>
-            <tr><th>Account</th><th>Type</th><th class="num">Debits</th><th class="num">Credits</th><th class="num">Balance</th></tr>
-            </thead>
-            <tbody>
-            <tr th:each="a : ${accounts}">
-                <td><code th:text="${a.account}">PAYPAL_CASH</code></td>
-                <td class="muted" th:text="${@fmt.label(a.account.type)}">Asset</td>
-                <td class="num" th:text="${@fmt.money(a.debitCents)}">$0.00</td>
-                <td class="num" th:text="${@fmt.money(a.creditCents)}">$0.00</td>
-                <td class="num strong" th:text="${@fmt.money(a.balanceCents)}">$0.00</td>
-            </tr>
-            </tbody>
-        </table>
+    <section class="journal" aria-labelledby="journal-title">
+        <div class="journal-head">
+            <h2 id="journal-title">Journal <span class="muted small">newest first, last 200 entries</span></h2>
+
+            <div class="ledger-filter" role="radiogroup" aria-label="Show entries"
+                 th:unless="${#lists.isEmpty(entries)}"
+                 th:with="nTopup=${#lists.size(entries.?[kind.startsWith('TOPUP')])},
+                          nSale=${#lists.size(entries.?[kind == 'SPEND'])},
+                          nCashout=${#lists.size(entries.?[kind.startsWith('CASHOUT')])},
+                          nCorrection=${#lists.size(entries.?[kind == 'CORRECTION'])}">
+                <input class="visually-hidden" type="radio" name="ledger-source" id="f-all" checked>
+                <label for="f-all">All <span class="filter-count" th:text="${#lists.size(entries)}">3</span></label>
+                <th:block th:if="${nTopup > 0}">
+                    <input class="visually-hidden" type="radio" name="ledger-source" id="f-topup">
+                    <label for="f-topup"><span class="src-dot topup" aria-hidden="true"></span>Money in <span class="filter-count" th:text="${nTopup}">2</span></label>
+                </th:block>
+                <th:block th:if="${nSale > 0}">
+                    <input class="visually-hidden" type="radio" name="ledger-source" id="f-sale">
+                    <label for="f-sale"><span class="src-dot sale" aria-hidden="true"></span>Counter sales <span class="filter-count" th:text="${nSale}">1</span></label>
+                </th:block>
+                <th:block th:if="${nCashout > 0}">
+                    <input class="visually-hidden" type="radio" name="ledger-source" id="f-cashout">
+                    <label for="f-cashout"><span class="src-dot cashout" aria-hidden="true"></span>Cash-outs <span class="filter-count" th:text="${nCashout}">0</span></label>
+                </th:block>
+                <th:block th:if="${nCorrection > 0}">
+                    <input class="visually-hidden" type="radio" name="ledger-source" id="f-correction">
+                    <label for="f-correction"><span class="src-dot correction" aria-hidden="true"></span>Corrections <span class="filter-count" th:text="${nCorrection}">0</span></label>
+                </th:block>
+            </div>
+        </div>
+
+        <div class="empty-state" th:if="${#lists.isEmpty(entries)}">
+            <div class="empty-copy">
+                <h2 class="empty-title">No entries yet.</h2>
+                <p class="empty-text">A top-up, a counter sale or a cash-out each writes one balanced entry here.</p>
+            </div>
+            <div class="empty-ghost" aria-hidden="true"><span></span><span></span></div>
+        </div>
+
+        <div class="entry-grid" th:unless="${#lists.isEmpty(entries)}">
+            <article class="entry-card" th:each="e : ${entries}"
+                     th:with="src=${#strings.startsWith(e.kind, 'TOPUP') ? 'topup' : (e.kind == 'SPEND' ? 'sale' : (#strings.startsWith(e.kind, 'CASHOUT') ? 'cashout' : (e.kind == 'CORRECTION' ? 'correction' : 'other')))},
+                              balanced=${e.totalDebits() == e.totalCredits()},
+                              custLine=${e.lines.^[customerName != null]},
+                              memoTitle=${e.kind == 'SPEND' and e.memo != null and !#strings.isEmpty(e.memo) and #strings.length(e.memo) <= 48}"
+                     th:attr="data-src=${src}, aria-labelledby=${'entry-' + e.id}"
+                     th:classappend="${!balanced or #lists.contains(unbalanced, e.id)} ? 'is-unbalanced'">
+                <header class="entry-top">
+                    <span class="entry-id" th:text="${'#' + e.id}">#1</span>
+                    <span class="entry-source" th:classappend="${src}">
+                        <span class="src-icon" aria-hidden="true" th:switch="${src}">
+                            <svg th:case="'topup'" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v8M8 12h8"/></svg>
+                            <svg th:case="'sale'" viewBox="0 0 24 24"><path d="M4 7h16l-1.5 11a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2z"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/></svg>
+                            <svg th:case="'cashout'" viewBox="0 0 24 24"><path d="M4 12h14M13 6l6 6-6 6"/></svg>
+                            <svg th:case="'correction'" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>
+                            <svg th:case="*" viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M9 9h6M9 13h6"/></svg>
+                        </span>
+                        <span th:text="${src == 'topup' ? 'Money in' : (src == 'sale' ? 'Counter sale' : (src == 'cashout' ? 'Cash-out' : (src == 'correction' ? 'Correction' : 'Entry')))}">Money in</span>
+                    </span>
+                    <span class="entry-date" th:text="${@fmt.date(e.businessDate)}">2026-01-01</span>
+                </header>
+
+                <div class="entry-title-row">
+                    <div class="entry-title">
+                        <h3 th:id="${'entry-' + e.id}" th:text="${memoTitle} ? ${e.memo} : ${@fmt.label(e.kind)}">Top-up captured</h3>
+                        <span class="entry-customer" th:if="${custLine != null}" th:text="${custLine.customerName}">Maya Lindqvist</span>
+                    </div>
+                    <span class="entry-amount money" th:text="${@fmt.money(e.totalDebits())}">$50.00</span>
+                </div>
+
+                <div class="entry-lines">
+                    <div class="side">
+                        <span class="side-label">Debit</span>
+                        <div class="line" th:each="l : ${e.lines}" th:if="${l.debitCents > 0}">
+                            <span class="line-acct">
+                                <span th:text="${#strings.replace(@fmt.label(l.account), 'Paypal', 'PayPal')}">PayPal cash</span>
+                                <span class="line-who" th:if="${l.customerName != null}" th:text="${l.customerName}"></span>
+                            </span>
+                            <span class="line-amt" th:text="${@fmt.money(l.debitCents)}">$48.21</span>
+                        </div>
+                    </div>
+                    <div class="side side-credit">
+                        <span class="side-label">Credit</span>
+                        <div class="line" th:each="l : ${e.lines}" th:if="${l.creditCents > 0}">
+                            <span class="line-acct">
+                                <span th:text="${#strings.replace(@fmt.label(l.account), 'Paypal', 'PayPal')}">Customer prepaid</span>
+                                <span class="line-who" th:if="${l.customerName != null}" th:text="${l.customerName}"></span>
+                            </span>
+                            <span class="line-amt" th:text="${@fmt.money(l.creditCents)}">$50.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="entry-memo" th:if="${!memoTitle and e.memo != null and !#strings.isEmpty(e.memo)}" th:text="${e.memo}">memo</p>
+
+                <div class="entry-check" th:classappend="${balanced} ? 'ok' : 'bad'">
+                    <span class="check-icon" aria-hidden="true">
+                        <svg th:if="${balanced}" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>
+                        <svg th:unless="${balanced}" viewBox="0 0 24 24"><path d="M12 6v8"/><path d="M12 18.5v0.5"/></svg>
+                    </span>
+                    <span th:text="${(balanced ? 'Balances, ' : 'Does not balance, ') + @fmt.money(e.totalDebits()) + (balanced ? ' = ' : ' and ') + @fmt.money(e.totalCredits())}">Balances, $50.00 = $50.00</span>
+                </div>
+
+                <div class="entry-effect" th:each="l : ${e.lines}" th:if="${l.customerName != null}">
+                    <span class="effect-label" th:text="${l.customerName + '’s balance'}">Maya’s balance</span>
+                    <span class="effect-value" th:text="${@fmt.signed(l.creditCents - l.debitCents)}">+$50.00</span>
+                </div>
+
+                <footer class="entry-people"
+                        th:with="who=${e.createdBy ?: ''},
+                                 isSys=${#strings.startsWith(e.createdBy ?: '', 'system:')},
+                                 isCust=${#strings.startsWith(e.createdBy ?: '', 'customer:')},
+                                 whoName=${@fmt.actor(e.createdBy)}">
+                    <div class="who">
+                        <span class="avatar avatar-sm" aria-hidden="true"
+                              th:with="custId=${isCust ? #strings.substringAfter(who, 'customer:') : ''},
+                                       custName=${isCust ? #strings.replace(whoName, ' (customer)', '') : ''}"
+                              th:classappend="${who == 'maker' ? 'maker' : (who == 'checker' ? 'checker' : (isCust ? (#strings.isEmpty(custId) ? 'customer' : 'tone-' + ((T(java.lang.Long).parseLong(custId) - 1) % 3)) : (isSys ? 'system' : 'clerk')))}">
+                            <svg th:if="${isSys}" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.6 0l3-3a4 4 0 0 0-5.6-5.6l-1 1"/><path d="M14 10a4 4 0 0 0-5.6 0l-3 3a4 4 0 0 0 5.6 5.6l1-1"/></svg>
+                            <th:block th:if="${isCust}" th:text="${#strings.toUpperCase(#strings.substring(custName, 0, 1) + (custName.contains(' ') ? #strings.substring(custName, custName.lastIndexOf(' ') + 1, custName.lastIndexOf(' ') + 2) : ''))}">ML</th:block>
+                            <th:block th:unless="${isSys or isCust}" th:text="${who == 'maker' ? 'mk' : (who == 'checker' ? 'ck' : (#strings.length(whoName) > 1 ? #strings.toLowerCase(#strings.substring(whoName, 0, 2)) : whoName))}">cl</th:block>
+                        </span>
+                        <span class="who-text">
+                            <span class="who-role">Made by</span>
+                            <span class="who-name" th:text="${whoName}">clerk</span>
+                        </span>
+                    </div>
+                    <div class="who">
+                        <span class="avatar avatar-sm" aria-hidden="true" th:if="${e.approvedBy != null}"
+                              th:classappend="${e.approvedBy == 'maker' ? 'maker' : 'checker'}"
+                              th:text="${e.approvedBy == 'checker' ? 'ck' : (e.approvedBy == 'maker' ? 'mk' : (#strings.length(e.approvedBy) > 1 ? #strings.toLowerCase(#strings.substring(e.approvedBy, 0, 2)) : e.approvedBy))}">ck</span>
+                        <span class="avatar avatar-sm avatar-none" aria-hidden="true" th:if="${e.approvedBy == null}">
+                            <svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg>
+                        </span>
+                        <span class="who-text">
+                            <span class="who-role" th:text="${e.approvedBy != null and e.approvedBy != e.createdBy} ? 'Approved by, a different person' : 'Approved by'">Approved by</span>
+                            <span class="who-name" th:text="${e.approvedBy != null} ? ${@fmt.actor(e.approvedBy)} : 'Not needed'">Not needed</span>
+                        </span>
+                    </div>
+                    <div class="entry-ref" th:if="${e.refType != null}">
+                        <a th:if="${e.refType == 'break'}" class="ref-link" th:href="@{/proposals}">
+                            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.6 0l3-3a4 4 0 0 0-5.6-5.6l-1 1"/><path d="M14 10a4 4 0 0 0-5.6 0l-3 3a4 4 0 0 0 5.6 5.6l1-1"/></svg>
+                            <span th:text="${'Corrects break #' + e.refId}">Corrects break #1</span>
+                        </a>
+                        <th:block th:unless="${e.refType == 'break'}">
+                            <span class="ref-type" th:text="${@fmt.label(e.refType)}">Top-up</span>
+                            <span class="mono ref-id" th:title="${e.refId}" th:text="${e.refId}">2ca7de8d</span>
+                        </th:block>
+                    </div>
+                </footer>
+            </article>
+        </div>
     </section>
 
-    <section class="card">
-        <h2>Journal <span class="muted small">newest first, last 200 entries</span></h2>
-        <p class="muted" th:if="${#lists.isEmpty(entries)}">No entries yet.</p>
-        <article class="entry" th:each="e : ${entries}">
-            <header class="entry-head">
-                <span class="entry-id" th:text="${'#' + e.id}">#1</span>
-                <span class="badge plain" th:text="${@fmt.label(e.kind)}">Spend</span>
-                <span th:text="${@fmt.date(e.businessDate)}">2026-01-01</span>
-                <span class="muted" th:text="${e.memo}">memo</span>
-                <span class="entry-by muted">
-                    by <span th:text="${@fmt.actor(e.createdBy)}">maker</span>
-                    <th:block th:if="${e.approvedBy != null}">, approved by <span th:text="${@fmt.actor(e.approvedBy)}">checker</span></th:block>
-                    <span th:if="${e.refType != null}" th:text="${'· ' + e.refType + ' ' + e.refId}"></span>
-                </span>
-            </header>
+    <section class="card ledger-accounts" aria-labelledby="accounts-title">
+        <div class="panel-head">
+            <h2 id="accounts-title">Account balances</h2>
+            <span class="muted">Every debit has a matching credit, so the two columns add up to the same total.</span>
+        </div>
+        <div class="table-well">
             <table class="table compact">
-                <thead><tr><th>Account</th><th>Customer</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
+                <thead>
+                <tr><th>Account</th><th>Type</th><th class="num">Debits</th><th class="num">Credits</th><th class="num">Balance</th></tr>
+                </thead>
                 <tbody>
-                <tr th:each="l : ${e.lines}">
-                    <td><code th:text="${l.account}">PAYPAL_CASH</code></td>
-                    <td th:text="${l.customerName}"></td>
-                    <td class="num" th:text="${l.debitCents > 0} ? ${@fmt.money(l.debitCents)} : ''"></td>
-                    <td class="num" th:text="${l.creditCents > 0} ? ${@fmt.money(l.creditCents)} : ''"></td>
+                <tr th:each="a : ${accounts}">
+                    <td>
+                        <span class="acct-name" th:text="${#strings.replace(@fmt.label(a.account), 'Paypal', 'PayPal')}">PayPal cash</span>
+                        <code class="acct-code" th:text="${a.account}">PAYPAL_CASH</code>
+                    </td>
+                    <td class="muted" th:text="${@fmt.label(a.account.type)}">Asset</td>
+                    <td class="num" th:text="${@fmt.money(a.debitCents)}">$0.00</td>
+                    <td class="num" th:text="${@fmt.money(a.creditCents)}">$0.00</td>
+                    <td class="num strong" th:text="${@fmt.money(a.balanceCents)}">$0.00</td>
                 </tr>
                 </tbody>
+                <tfoot th:unless="${#lists.isEmpty(accounts)}"
+                       th:with="dr=${#aggregates.sum(accounts.![debitCents]).longValue()}, cr=${#aggregates.sum(accounts.![creditCents]).longValue()}">
+                <tr>
+                    <th scope="row" colspan="2">
+                        <span class="trial-check" th:classappend="${dr == cr} ? 'ok' : 'bad'">
+                            <span class="trial-icon" aria-hidden="true">
+                                <svg th:if="${dr == cr}" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>
+                                <svg th:unless="${dr == cr}" viewBox="0 0 24 24"><path d="M12 6v8"/><path d="M12 18.5v0.5"/></svg>
+                            </span>
+                            <span th:text="${dr == cr} ? 'Debits equal credits' : 'Debits and credits differ'">Debits equal credits</span>
+                        </span>
+                    </th>
+                    <td class="num" th:text="${@fmt.money(dr)}">$0.00</td>
+                    <td class="num" th:text="${@fmt.money(cr)}">$0.00</td>
+                    <td></td>
+                </tr>
+                </tfoot>
             </table>
-        </article>
+        </div>
     </section>
 </main>
 </body>

@@ -1,0 +1,352 @@
+/* Counter (pos.html) and cash-outs (cashouts.html). Loads after app.css and uses its tokens. */
+
+/* ================================================================== Counter */
+
+.charge-panel { padding-bottom: var(--s-5); }
+.charge-form { display: flex; flex-direction: column; gap: var(--s-5); }
+
+.customer-pick { border: 0; margin: 0; padding: 0; min-width: 0; }
+.customer-pick legend {
+  padding: 0;
+  margin-bottom: var(--s-2);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.customer-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--s-3);
+}
+
+/* Each customer is a large radio target. The radio itself is hidden but still focusable. */
+.customer-tile {
+  display: block;
+  position: relative;
+  cursor: pointer;
+  color: var(--text);
+  font-size: var(--fs-base);
+}
+.customer-tile input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+}
+.tile-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  height: 100%;
+  min-height: 132px;
+  padding: var(--s-4);
+  border-radius: var(--r-lg);
+  background: var(--well);
+  border: 1px solid var(--well-line);
+  box-shadow: var(--shadow-tile);
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+.customer-tile:hover .tile-body { border-color: var(--glass-line-strong); background: rgba(255, 255, 255, 0.08); }
+.customer-tile input:focus-visible + .tile-body { outline: 3px solid var(--focus); outline-offset: 3px; }
+
+.tile-top { display: flex; align-items: center; gap: var(--s-3); min-width: 0; }
+.tile-name { flex: 1 1 auto; min-width: 0; font-weight: var(--fw-strong); font-size: var(--fs-md); line-height: 1.2; overflow-wrap: anywhere; }
+.tile-check {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-xs);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  color: transparent;
+}
+.tile-check svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+
+.tile-balance { order: 1; display: flex; flex-direction: column; gap: 2px; margin-top: auto; }
+.tile-balance-label { font-size: var(--fs-sm); font-weight: 700; color: var(--text-muted); }
+.tile-money { font-size: var(--fs-money); }
+.tile-empty {
+  align-self: flex-start;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-strong);
+  padding: 3px 9px;
+  border-radius: var(--r-xs);
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-soft);
+}
+
+/* The chosen customer turns into paper: the one thing the clerk looks at */
+.customer-tile input:checked + .tile-body {
+  background: var(--paper);
+  border-color: transparent;
+  color: var(--ink);
+  box-shadow: 0 16px 34px rgba(6, 4, 24, 0.42), inset 0 -3px 0 rgba(27, 22, 64, 0.08);
+}
+.customer-tile input:checked + .tile-body .tile-name,
+.customer-tile input:checked + .tile-body .tile-money { color: var(--ink); }
+.customer-tile input:checked + .tile-body .tile-balance-label { color: var(--ink-soft); }
+.customer-tile input:checked + .tile-body .tile-check { background: var(--ink); border-color: var(--ink); color: #ffffff; }
+.customer-tile input:checked + .tile-body .tile-empty { background: var(--paper-well); color: var(--ink); }
+
+.charge-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--s-4);
+}
+.money-input-lg { min-height: 60px; padding: 0 8px; }
+.money-input-lg > span { flex-basis: 44px; height: 44px; border-radius: var(--r-sm); font-size: var(--fs-lg); }
+.money-input-lg input { min-height: 58px; font-size: var(--fs-xl); font-weight: var(--fw-black); letter-spacing: -0.02em; }
+.memo-field input { min-height: 60px; font-size: var(--fs-md); }
+.charge-button { min-height: 60px; min-width: 168px; font-size: var(--fs-lg); border-radius: var(--r-md); }
+
+.guard-note {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-5);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--ok-tint);
+  border: 1px solid rgba(142, 240, 200, 0.28);
+}
+.guard-note p { margin: 0; color: var(--text-soft); font-size: var(--fs-sm); }
+.guard-note .status-icon svg { stroke-width: 2.6; }
+
+/* A refusal on this page reads as a calm stop, not an alarm */
+.counter-page .flash.error { font-size: var(--fs-md); padding-top: var(--s-4); padding-bottom: var(--s-4); }
+
+.sales-panel .table-well { overflow-x: auto; }
+.sales-panel .table td { white-space: nowrap; }
+.sales-panel .table td:nth-child(3) { white-space: normal; min-width: 160px; }
+.when-cell { color: var(--text-soft); font-size: var(--fs-sm); }
+.customer-cell { display: inline-flex; align-items: center; gap: 10px; }
+
+@media (max-width: 900px) {
+  .charge-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .charge-button { grid-column: 1 / -1; width: 100%; }
+}
+@media (max-width: 640px) {
+  .customer-tiles { grid-template-columns: 1fr; gap: var(--s-2); }
+  .tile-body {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--s-2) var(--s-3);
+    padding: var(--s-3);
+  }
+  .tile-top { grid-column: 1; }
+  .tile-check { order: -1; }
+  .tile-balance { grid-column: 2; grid-row: 1; margin-top: 0; align-items: flex-end; }
+  .tile-money { font-size: var(--fs-xl); }
+  .tile-empty { grid-column: 1 / -1; align-self: auto; text-align: center; }
+  .charge-row { grid-template-columns: 1fr; }
+  .guard-note { align-items: flex-start; }
+}
+
+/* ================================================================== Cash-outs */
+
+.stat-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+
+/* The relay rules as four short tiles */
+.relay-head { align-items: center; }
+.relay-form { margin: 0; }
+.relay-form:empty { display: none; }
+.relay-rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+.relay-rules > li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-lg);
+  background: var(--well);
+  border: 1px solid var(--well-line);
+}
+.relay-rules .status-icon { margin-top: 1px; }
+.relay-rules .status-icon svg { stroke-width: 2.8; }
+.relay-rules .status-detail { color: var(--text-soft); line-height: 1.45; }
+
+.empty-panel .empty-state { padding: var(--s-2) 0; }
+
+/* One cash-out */
+.cashout-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3) var(--s-5);
+  margin-bottom: var(--s-4);
+}
+.cashout-head .person { gap: var(--s-3); }
+.cashout-name { margin: 0; font-size: var(--fs-lg); }
+.cashout-head .person-role { margin-top: 2px; color: var(--text-muted); }
+.cashout-figure { display: inline-flex; align-items: center; gap: var(--s-3); }
+
+.leg-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-4);
+  margin-bottom: var(--s-5);
+}
+.leg-bar {
+  flex: 1 1 100%;
+  display: flex;
+  gap: 4px;
+  height: 12px;
+}
+.leg-seg { flex: 1 1 0; min-width: 12px; border-radius: 6px; background: rgba(255, 255, 255, 0.16); }
+.leg-seg.leg-done { background: var(--ok); }
+.leg-seg.leg-in_doubt { background: var(--attention); box-shadow: var(--glow-attention); }
+.leg-seg.leg-failed { background: var(--danger); }
+.leg-seg.leg-pending {
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.26) 0 6px, rgba(255, 255, 255, 0.1) 6px 12px);
+}
+.leg-count { margin: 0; font-size: var(--fs-sm); color: var(--text-soft); }
+.leg-count strong { color: var(--text); font-weight: var(--fw-black); }
+.cashout-meta { margin: 0 0 0 auto; color: var(--text-muted); }
+.cashout-meta code { font-size: var(--fs-xs); }
+
+/* The legs as a relay: node, line to the next node, and a card under each node */
+.legs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: stretch;
+}
+.leg {
+  --leg-line: rgba(255, 255, 255, 0.34);
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+}
+.leg-rail { display: flex; align-items: center; height: 40px; margin-bottom: var(--s-3); }
+.leg-node {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--fw-black);
+  font-size: var(--fs-md);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 2px dashed rgba(255, 255, 255, 0.5);
+}
+.leg-node svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+.leg-line {
+  flex: 1 1 auto;
+  height: 3px;
+  margin: 0 var(--s-2);
+  border-radius: 2px;
+  background: repeating-linear-gradient(90deg, var(--leg-line) 0 7px, transparent 7px 13px);
+}
+.leg:last-child .leg-line { visibility: hidden; }
+
+.leg-done .leg-node { background: var(--ok); color: var(--ok-ink); border: 0; }
+.leg-done .leg-line { background: var(--ok); }
+.leg-failed .leg-node { background: var(--danger); color: var(--danger-ink); border: 0; }
+.leg-in_doubt .leg-node { background: var(--attention); color: var(--attention-ink); border: 0; box-shadow: var(--glow-attention); }
+.leg.is-sending .leg-node { animation: leg-pulse 1.4s var(--ease) infinite; }
+@keyframes leg-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201, 184, 255, 0.55); }
+  50% { box-shadow: 0 0 0 8px rgba(201, 184, 255, 0); }
+}
+
+.leg-card {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+  margin-right: var(--s-4);
+  padding: var(--s-4);
+  border-radius: var(--r-lg);
+  background: var(--well);
+  border: 1px solid var(--well-line);
+}
+.leg:last-child .leg-card { margin-right: 0; }
+.leg-in_doubt .leg-card { border-color: var(--attention-edge); background: linear-gradient(var(--attention-tint), var(--attention-tint)), var(--well); }
+.leg-failed .leg-card { border-color: var(--danger-edge); }
+.leg-done .leg-card { border-color: rgba(142, 240, 200, 0.3); }
+
+.leg-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); }
+.leg-name { font-weight: var(--fw-strong); color: var(--text-soft); }
+.leg-money { font-size: var(--fs-xl); }
+.leg-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px var(--s-2); }
+.leg-status .badge { font-size: var(--fs-sm); padding: 4px 11px; }
+
+.leg-kv {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px var(--s-3);
+  margin: 0;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--divider-soft);
+  font-size: var(--fs-sm);
+}
+.leg-kv dt { color: var(--text-muted); font-weight: 700; }
+.leg-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; text-align: right; }
+.leg-kv dd.num { font-weight: var(--fw-strong); }
+.leg-kv code { font-size: var(--fs-xs); white-space: normal; overflow-wrap: anywhere; word-break: break-all; }
+.leg-kv dt.leg-wide { grid-column: 1 / -1; margin-top: 2px; }
+.leg-kv dd.leg-wide { grid-column: 1 / -1; text-align: left; margin-top: -4px; }
+.leg-kv dd.leg-wide code { display: block; padding: 6px 8px; line-height: 1.4; color: var(--text-soft); }
+
+.leg-error {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+.leg-error-label { font-size: var(--fs-xs); font-weight: var(--fw-strong); color: var(--text-muted); }
+.leg-in_doubt .leg-error, .leg-pending .leg-error { background: var(--attention-tint); }
+.leg-failed .leg-error { background: var(--danger-tint); }
+
+@media (max-width: 1100px) {
+  .legs { flex-direction: column; }
+  .leg { flex-direction: row; max-width: none; }
+  .leg-rail { flex-direction: column; height: auto; margin: 0 var(--s-3) 0 0; }
+  .leg-line {
+    width: 3px;
+    height: auto;
+    margin: var(--s-2) 0;
+    background: repeating-linear-gradient(180deg, var(--leg-line) 0 7px, transparent 7px 13px);
+  }
+  .leg-done .leg-line { background: var(--ok); }
+  .leg-card { margin: 0 0 var(--s-3) 0; }
+  .leg:last-child .leg-card { margin-bottom: 0; }
+}
+@media (max-width: 900px) {
+  .relay-rules { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .cashout-meta { margin-left: 0; }
+  .leg-node { flex-basis: 34px; width: 34px; height: 34px; border-radius: 10px; }
+  .leg-card { padding: var(--s-3); }
+}

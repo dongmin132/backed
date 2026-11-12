@@ -6,24 +6,24 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title th:text="${(status != null ? status + ' ' : '') + 'Something went wrong | Backed'}">Error | Backed</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap">
     <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body>
-<header class="topbar">
-    <div class="topbar-inner">
-        <a class="brand" th:href="@{/}">Backed</a>
-    </div>
-</header>
-<main class="container narrow">
-    <section class="card">
-        <p class="stat-label" th:text="${status != null ? 'Error ' + status : 'Error'}">Error 500</p>
+<div class="error-shell">
+    <!--/* The logo is not chosen yet: swap the contents of .brand-mark. */-->
+    <a class="brand" th:href="@{/}"><span class="brand-mark">Backed</span></a>
+    <main class="card panel-strong panel-hero">
+        <p class="error-code"><span class="badge watch badge-lg" th:text="${status != null ? 'Error ' + status : 'Error'}">Error 500</span></p>
         <h1 th:switch="${status}">
             <span th:case="403">Your role cannot do this</span>
             <span th:case="404">Not found</span>
             <span th:case="400">The request was not understood</span>
             <span th:case="*">Something went wrong</span>
         </h1>
-        <p class="muted" th:switch="${status}">
+        <p class="page-context" th:switch="${status}">
             <span th:case="403">The maker runs top-up resolution, cash-out relays, the close and investigations. The
                 checker approves and dismisses proposals. The clerk works the counter. Sign in as the user whose role
                 fits the action.</span>
@@ -32,9 +32,12 @@
             <span th:case="400">A value in the request was missing or had the wrong form.</span>
             <span th:case="*">The server could not finish this request. The details are in the server log.</span>
         </p>
-        <p class="muted small" th:if="${path != null}">Address: <code th:text="${path}">/path</code></p>
-        <p><a th:href="@{/}">Back to the dashboard</a></p>
-    </section>
-</main>
+        <dl class="kv" th:if="${path != null}">
+            <dt>Address</dt>
+            <dd><code th:text="${path}">/path</code></dd>
+        </dl>
+        <p class="error-actions"><a class="btn primary" th:href="@{/}">Back to the dashboard</a></p>
+    </main>
+</div>
 </body>
 </html>

@@ -1,83 +1,148 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/customer :: page('Your balance', ~{::main})}">
 <body>
-<main class="container narrow">
+<main class="container narrow phone">
+
+    <header class="hello" th:with="parts=${#strings.arraySplit(customer.name, ' ')}">
+        <!--/* The logo is not chosen yet: swap the contents of .brand-mark. */-->
+        <span class="brand-mark hello-mark" role="img" aria-label="Backed">b</span>
+        <div class="hello-text">
+            <span class="hello-greet">Good to see you</span>
+            <h1 th:text="${customer.name}">Demo Customer A</h1>
+        </div>
+        <span class="hello-avatar" aria-hidden="true" th:classappend="${'tone-' + ((customer.id - 1) % 3)}"
+              th:text="${#strings.toUpperCase(#strings.substring(parts[0], 0, 1) + (#arrays.length(parts) > 1 ? #strings.substring(parts[#arrays.length(parts) - 1], 0, 1) : ''))}">DA</span>
+    </header>
+
     <div th:replace="~{layout/flash :: flash}"></div>
 
-    <section class="card balance-card">
-        <p class="muted" th:text="${customer.name}">Demo Customer A</p>
-        <p class="stat-label">Balance</p>
-        <p class="balance num" th:text="${@fmt.money(balanceCents)}">$0.00</p>
+    <section class="member" aria-labelledby="member-label">
+        <div class="member-card">
+            <div class="member-top">
+                <span id="member-label">Member card</span>
+                <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8.5 7.5a6 6 0 0 1 0 9"/><path d="M12 5a9.5 9.5 0 0 1 0 14"/><path d="M15.5 2.5a13 13 0 0 1 0 19"/></svg>
+            </div>
+            <svg class="member-chip" aria-hidden="true" width="40" height="30" viewBox="0 0 40 30" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.4"><rect x="1" y="1" width="38" height="28" rx="6" fill="rgba(255,210,122,0.35)"/><path d="M1 11h12M1 19h12M27 11h12M27 19h12M13 1v28M27 1v28"/></svg>
+            <div class="member-balance">
+                <span class="member-label">Balance</span>
+                <p class="member-amount money" th:text="${@fmt.money(balanceCents)}">$0.00</p>
+            </div>
+            <div class="member-foot">
+                <span class="member-name" th:text="${customer.name}">Demo Customer A</span>
+                <span class="member-note" th:text="${balanceCents > 0} ? 'Topped up through PayPal' : 'Top up through PayPal'">Topped up through PayPal</span>
+            </div>
+        </div>
     </section>
 
-    <section class="card">
-        <h2>Add money</h2>
-        <form th:action="@{/c/{token}/topup(token=${customer.token})}" method="post" class="row">
+    <p class="counter-hint">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3M21 14v7h-7"/></svg>
+        <span>Pay at the counter by showing this card</span>
+    </p>
+
+    <nav class="quick" aria-label="Move money">
+        <a class="btn primary quick-btn" href="#add-money">
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Add money
+        </a>
+        <a class="btn quick-btn" href="#cash-out">
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+            Cash out
+        </a>
+    </nav>
+
+    <section class="card sheet" aria-labelledby="recent-title">
+        <div class="panel-head">
+            <h2 id="recent-title">Recent</h2>
+        </div>
+        <ul class="moves" th:unless="${#lists.isEmpty(history)}">
+            <th:block th:each="h, it : ${history}" th:if="${it.index < 4}">
+                <li th:replace="~{web/customer :: move(${h})}"></li>
+            </th:block>
+        </ul>
+        <details class="more" id="history" th:if="${#lists.size(history) > 4}">
+            <summary>Show all <span th:text="${#lists.size(history)}">12</span></summary>
+            <ul class="moves">
+                <th:block th:each="h, it : ${history}" th:if="${it.index >= 4}">
+                    <li th:replace="~{web/customer :: move(${h})}"></li>
+                </th:block>
+            </ul>
+        </details>
+        <div class="moves-empty" th:if="${#lists.isEmpty(history)}">
+            <p class="moves-empty-title">Nothing yet.</p>
+            <p class="muted small">Top-ups and purchases at the counter will show here.</p>
+        </div>
+    </section>
+
+    <a class="message-link" href="#message">
+        <span class="message-link-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 18l-1 3 4-1.5A8.5 8.5 0 1 0 4.5 15"/></svg></span>
+        <span class="message-link-text"><span class="message-link-title">Message the shop</span><span class="message-link-sub">Ask about a payment or your balance</span></span>
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+    </a>
+
+    <section class="card sheet" id="add-money" aria-labelledby="add-title">
+        <h2 id="add-title">Add money</h2>
+        <form th:action="@{/c/{token}/topup(token=${customer.token})}" method="post" class="row money-form">
             <label class="grow">Amount in USD
-                <input type="text" name="amount" inputmode="decimal" placeholder="25.00" required pattern="\$?\s*\d{1,9}(\.\d{1,2})?">
+                <span class="money-input"><span aria-hidden="true">$</span><input type="text" name="amount" inputmode="decimal" placeholder="25.00" required pattern="\$?\s*\d{1,9}(\.\d{1,2})?"></span>
             </label>
             <button type="submit" class="primary">Top up</button>
         </form>
         <p class="muted small">Paid with your saved sandbox card through PayPal.</p>
     </section>
 
-    <section class="card">
-        <h2>Cash out</h2>
-        <form th:action="@{/c/{token}/cashout(token=${customer.token})}" method="post" class="row">
+    <section class="card sheet" id="cash-out" aria-labelledby="cash-title">
+        <h2 id="cash-title">Cash out</h2>
+        <form th:action="@{/c/{token}/cashout(token=${customer.token})}" method="post" class="row money-form">
             <label class="grow">Amount in USD
-                <input type="text" name="amount" inputmode="decimal" th:placeholder="${@fmt.decimal(balanceCents)}" required pattern="\$?\s*\d{1,9}(\.\d{1,2})?">
+                <span class="money-input"><span aria-hidden="true">$</span><input type="text" name="amount" inputmode="decimal" th:placeholder="${@fmt.decimal(balanceCents)}" required pattern="\$?\s*\d{1,9}(\.\d{1,2})?"></span>
             </label>
             <button type="submit">Cash out</button>
         </form>
         <form th:if="${balanceCents > 0}" th:action="@{/c/{token}/cashout(token=${customer.token})}" method="post"
-              class="inline">
+              class="inline cash-all">
             <input type="hidden" name="amount" value="all">
             <button type="submit" class="link">Cash out everything (<span th:text="${@fmt.money(balanceCents)}">$0.00</span>)</button>
         </form>
         <p class="muted small">Refunded to the card you paid with, newest top-up first.</p>
     </section>
 
-    <section class="card">
-        <h2>History</h2>
-        <table class="table">
-            <thead><tr><th>Date</th><th>What</th><th class="num">Amount</th></tr></thead>
-            <tbody>
-            <tr th:each="h : ${history}">
-                <td th:text="${@fmt.date(h.businessDate)}">2026-01-01</td>
-                <td>
-                    <span th:text="${@fmt.historyForCustomer(h.kind, h.amountCents)}">Top-up</span>
-                    <span class="muted small" th:if="${h.kind == 'SPEND' and h.memo != null}" th:text="${h.memo}"></span>
-                </td>
-                <td class="num" th:classappend="${h.amountCents < 0} ? 'neg' : 'pos'" th:text="${@fmt.signed(h.amountCents)}">+$0.00</td>
-            </tr>
-            <tr th:if="${#lists.isEmpty(history)}"><td colspan="3" class="muted">Nothing yet.</td></tr>
-            </tbody>
-        </table>
+    <section class="card sheet" aria-labelledby="pay-title" th:unless="${#lists.isEmpty(topups) and #lists.isEmpty(cashouts)}">
+        <div class="panel-head">
+            <h2 id="pay-title">Payments</h2>
+            <span class="muted">Card payments through PayPal</span>
+        </div>
+        <ul class="moves">
+            <li class="move" th:each="t : ${topups}">
+                <span class="move-icon in" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+                <span class="move-text">
+                    <span class="move-title-row">
+                        <span class="move-title">Top-up</span>
+                        <span class="badge" th:classappend="${@fmt.customerTone(t.state)}" th:text="${@fmt.topupForCustomer(t.state)}">Added</span>
+                    </span>
+                    <span class="move-sub" th:text="${@fmt.time(t.createdAt)}">2026-11-13 10:00</span>
+                </span>
+                <span class="move-side">
+                    <span class="move-amount" th:text="${@fmt.money(t.amountCents)}">$0.00</span>
+                </span>
+            </li>
+            <li class="move" th:each="c : ${cashouts}">
+                <span class="move-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span>
+                <span class="move-text">
+                    <span class="move-title-row">
+                        <span class="move-title">Cash-out</span>
+                        <span class="badge" th:classappend="${@fmt.customerTone(c.state)}" th:text="${@fmt.cashoutForCustomer(c.state)}">Refunded</span>
+                    </span>
+                    <span class="move-sub" th:text="${@fmt.time(c.createdAt)}">2026-11-13 10:00</span>
+                </span>
+                <span class="move-side">
+                    <span class="move-amount" th:text="${@fmt.money(c.amountCents)}">$0.00</span>
+                </span>
+            </li>
+        </ul>
     </section>
 
-    <section class="card" th:unless="${#lists.isEmpty(topups) and #lists.isEmpty(cashouts)}">
-        <h2>Payments</h2>
-        <table class="table">
-            <thead><tr><th>When</th><th>Type</th><th>Status</th><th class="num">Amount</th></tr></thead>
-            <tbody>
-            <tr th:each="t : ${topups}">
-                <td th:text="${@fmt.time(t.createdAt)}"></td>
-                <td>Top-up</td>
-                <td><span class="badge" th:classappend="${@fmt.customerTone(t.state)}" th:text="${@fmt.topupForCustomer(t.state)}">Added</span></td>
-                <td class="num" th:text="${@fmt.money(t.amountCents)}">$0.00</td>
-            </tr>
-            <tr th:each="c : ${cashouts}">
-                <td th:text="${@fmt.time(c.createdAt)}"></td>
-                <td>Cash-out</td>
-                <td><span class="badge" th:classappend="${@fmt.customerTone(c.state)}" th:text="${@fmt.cashoutForCustomer(c.state)}">Refunded</span></td>
-                <td class="num" th:text="${@fmt.money(c.amountCents)}">$0.00</td>
-            </tr>
-            </tbody>
-        </table>
-    </section>
-
-    <section class="card">
-        <h2>Message the shop</h2>
+    <section class="card sheet" id="message" aria-labelledby="message-title">
+        <h2 id="message-title">Message the shop</h2>
         <form th:action="@{/c/{token}/message(token=${customer.token})}" method="post" class="stack">
             <label>Message
                 <textarea name="body" rows="3" maxlength="2000" required placeholder="Questions about a payment or a refund"></textarea>
@@ -92,5 +157,27 @@
         </ul>
     </section>
 </main>
+
+<!--/* One movement on the balance, used by the Recent list above. Only <main> is placed into the
+     layout, so this definition itself never renders. */-->
+<ul>
+    <li class="move" th:fragment="move(h)">
+        <span class="move-icon" th:classappend="${h.kind != 'SPEND' and h.amountCents > 0} ? 'in'" aria-hidden="true">
+            <svg th:if="${h.kind == 'SPEND'}" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8a2 2 0 0 0 2-2h12a2 2 0 0 0 2 2v8a2 2 0 0 0-2 2H6a2 2 0 0 0-2-2z"/><path d="M10 6v12" stroke-dasharray="2 2.5"/></svg>
+            <svg th:if="${h.kind != 'SPEND' and h.amountCents > 0}" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            <svg th:if="${h.kind != 'SPEND' and h.amountCents <= 0}" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+        </span>
+        <span class="move-text">
+            <span class="move-title" th:if="${h.kind == 'SPEND' and h.memo != null}" th:text="${h.memo}">Day pass and chalk</span>
+            <span class="move-title" th:unless="${h.kind == 'SPEND' and h.memo != null}" th:text="${@fmt.historyForCustomer(h.kind, h.amountCents)}">Top-up</span>
+            <span class="move-sub" th:if="${h.kind == 'TOPUP_CAPTURED'}">Paid with PayPal</span>
+            <span class="move-sub" th:if="${h.kind == 'SPEND'}">Paid from your balance</span>
+        </span>
+        <span class="move-side">
+            <span class="move-amount" th:classappend="${h.amountCents < 0} ? 'neg' : 'pos'" th:text="${@fmt.signed(h.amountCents)}">+$0.00</span>
+            <span class="move-date" th:text="${@fmt.date(h.businessDate)}">2026-01-01</span>
+        </span>
+    </li>
+</ul>
 </body>
 </html>

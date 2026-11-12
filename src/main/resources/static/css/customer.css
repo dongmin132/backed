@@ -1,0 +1,284 @@
+/* Customer phone page, built to the "Customer page, card" board.
+   A membership card with the balance as the hero, then recent activity.
+   Designed for a 390px phone first; on a desktop it stays a centred phone-width column.
+   Loads after app.css and uses its tokens. */
+
+html:has(body.customer) { scroll-behavior: smooth; }
+
+body.customer > main.container.phone {
+  max-width: 480px;
+  padding: var(--s-6) var(--s-5) var(--s-10);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+body.customer .phone > * { margin: 0; }
+body.customer .phone .flash-area .flash:last-child { margin-bottom: 0; }
+body.customer .phone .flash-area:not(:has(.flash)) { display: none; }
+
+/* Glass panels on this page: no sideways scroll box, so focus rings are never clipped */
+body.customer .card { overflow: visible; margin: 0; }
+body.customer .sheet {
+  border-radius: 26px;
+  padding: var(--s-4) 18px var(--s-5);
+  scroll-margin-top: var(--s-4);
+}
+body.customer .sheet h2 { font-size: var(--fs-md); margin-bottom: var(--s-3); }
+body.customer .sheet .panel-head { margin-bottom: var(--s-1); align-items: baseline; }
+body.customer .sheet .panel-head h2 { margin: 0; }
+body.customer .sheet .panel-head a { font-size: var(--fs-sm); font-weight: 700; color: var(--text-muted); }
+body.customer .sheet .panel-head a:hover { color: var(--text); }
+body.customer .sheet .panel-head .muted { font-size: var(--fs-sm); }
+body.customer .sheet:target {
+  border-color: rgba(201, 184, 255, 0.6);
+  box-shadow: var(--shadow-panel-strong), 0 0 0 3px rgba(201, 184, 255, 0.28);
+}
+
+/* ------------------------------------------------------------------ Greeting */
+
+.hello { display: flex; align-items: center; gap: var(--s-3); }
+.hello-mark {
+  flex: 0 0 38px;
+  height: 38px;
+  border-radius: var(--r-sm);
+  background: #ffffff;
+  color: var(--ink);
+  font-weight: var(--fw-black);
+  font-size: 20px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-raised);
+}
+.hello-text { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.hello-greet { font-size: var(--fs-sm); color: var(--text-muted); font-weight: 700; }
+.hello h1 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-black);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.hello-avatar {
+  flex: 0 0 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--person-customer);
+  color: var(--ink);
+  font-weight: var(--fw-black);
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-tile);
+}
+.hello-avatar.tone-1 { background: var(--person-checker); }
+.hello-avatar.tone-2 { background: var(--person-maker); }
+
+/* ------------------------------------------------------------------ Member card (the hero) */
+
+.member { position: relative; padding-top: 9px; }
+/* A second card peeking out behind, as in a wallet */
+.member::before {
+  content: "";
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 0;
+  height: 120px;
+  border-radius: var(--r-xl);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+.member-card {
+  position: relative;
+  min-height: 228px;
+  border-radius: var(--r-xl);
+  padding: var(--s-5) 22px 18px;
+  color: #ffffff;
+  background:
+    radial-gradient(160px 130px at 70px -20px, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 100%),
+    radial-gradient(110px 100px at calc(100% - 50px) calc(100% + 20px), rgba(16, 179, 164, 0.45), rgba(16, 179, 164, 0) 100%),
+    linear-gradient(140deg, #5b3be0 0%, #4126a8 46%, #962766 100%);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 30px 60px rgba(6, 4, 24, 0.6);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.member-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: var(--fw-strong);
+}
+.member-top svg { color: var(--text-soft); }
+.member-chip { display: block; margin-top: 14px; }
+.member-balance { margin-top: auto; padding-top: var(--s-4); display: flex; flex-direction: column; }
+.member-label { font-size: var(--fs-sm); font-weight: 700; color: var(--text-soft); margin-bottom: 6px; line-height: 1; }
+.member-amount {
+  margin: 0;
+  font-size: clamp(42px, 13vw, 54px);
+  font-weight: var(--fw-black);
+  letter-spacing: -0.035em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.member-foot {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 4px var(--s-3);
+}
+.member-name { font-size: 14px; font-weight: var(--fw-strong); letter-spacing: 0.04em; min-width: 0; overflow-wrap: anywhere; }
+.member-note { font-size: var(--fs-xs); font-weight: 700; color: var(--text-soft); }
+
+.counter-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  margin-top: calc(-1 * var(--s-1)) !important;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+  text-align: center;
+}
+.counter-hint svg { flex: 0 0 16px; }
+
+/* ------------------------------------------------------------------ Quick actions */
+
+.quick { display: flex; gap: var(--s-3); }
+.quick-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 56px;
+  font-size: 16px;
+  border-radius: var(--r-lg);
+}
+.quick-btn:not(.primary) {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.36);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+}
+.quick-btn:not(.primary):hover { background: rgba(255, 255, 255, 0.22); }
+
+/* ------------------------------------------------------------------ Movements (Recent, Payments) */
+
+.moves { list-style: none; margin: 0; padding: 0; }
+.move {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--divider);
+}
+.moves > .move:last-child { border-bottom: 0; }
+.more .moves > .move:first-child { border-top: 1px solid var(--divider); }
+.move-icon {
+  flex: 0 0 40px;
+  height: 40px;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-tile);
+}
+.move-icon.in { background: rgba(142, 240, 200, 0.16); color: var(--ok); }
+.move-text { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.move-title { font-weight: var(--fw-strong); overflow-wrap: anywhere; }
+.move-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--s-2); margin-bottom: 2px; }
+.move-sub { font-size: var(--fs-sm); color: var(--text-muted); font-weight: 600; }
+.move-side { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; line-height: 1.2; }
+.move-amount { font-size: var(--fs-md); font-weight: var(--fw-black); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.move-amount.pos { color: var(--ok); }
+.move-date { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+
+.more { border-top: 1px solid var(--divider); }
+.more > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  margin-top: var(--s-1);
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-strong);
+  color: var(--text-soft);
+}
+.more > summary::-webkit-details-marker { display: none; }
+.more > summary:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+.more[open] > summary { display: none; }
+
+.moves-empty { padding: var(--s-3) 0 var(--s-1); }
+.moves-empty-title { font-weight: var(--fw-strong); margin-bottom: 2px; }
+
+/* ------------------------------------------------------------------ Message shortcut */
+
+.message-link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px var(--s-4);
+  border-radius: 22px;
+  background: rgba(10, 8, 32, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--text);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  transition: background var(--t-fast) var(--ease);
+}
+.message-link:hover { color: var(--text); text-decoration: none; background: rgba(10, 8, 32, 0.5); }
+.message-link-icon {
+  flex: 0 0 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.message-link-text { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.message-link-title { font-weight: var(--fw-strong); }
+.message-link-sub { font-size: var(--fs-sm); color: var(--text-muted); font-weight: 600; }
+
+/* ------------------------------------------------------------------ Forms */
+
+body.customer .money-form { gap: var(--s-3); margin-bottom: var(--s-3); }
+body.customer .money-form .grow { min-width: 150px; }
+body.customer .money-form button { min-height: 48px; padding: 0 var(--s-6); }
+body.customer .money-input { min-height: 48px; }
+body.customer .money-input input { min-height: 44px; }
+body.customer .cash-all { display: block; margin: 0 0 var(--s-2); }
+body.customer .cash-all button.link { gap: 0; min-height: 32px; white-space: normal; text-align: left; }
+body.customer .sheet > p.small { margin: 0; }
+
+body.customer .messages li { padding: var(--s-3) 0 0; border-top: 0; }
+body.customer .messages p {
+  margin-top: 6px;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  background: var(--well);
+  border: 1px solid var(--well-line);
+}
+
+/* ------------------------------------------------------------------ Narrow phones */
+
+@media (max-width: 360px) {
+  body.customer > main.container.phone { padding-left: var(--s-4); padding-right: var(--s-4); }
+  .member-card { padding-left: 18px; padding-right: 18px; }
+  .quick-btn { font-size: var(--fs-base); padding: 0 var(--s-3); }
+}

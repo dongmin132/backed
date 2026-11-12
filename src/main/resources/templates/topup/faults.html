@@ -2,7 +2,20 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Demo faults', ~{::main})}">
 <body>
 <main class="container">
-    <h1>Demo faults</h1>
+    <link rel="stylesheet" th:href="@{/css/topup.css}">
+
+    <header class="page-header">
+        <div>
+            <div class="demo-title">
+                <h1>Demo faults</h1>
+                <span class="badge badge-lg demo-tag">Demo tool</span>
+            </div>
+            <p class="page-context">Break one PayPal call on purpose, to show what Backed does when PayPal goes wrong.</p>
+        </div>
+        <div class="page-actions">
+            <span class="mode-pill">PayPal mode <code th:text="${paypalMode}">sandbox</code></span>
+        </div>
+    </header>
     <div th:replace="~{layout/flash :: flash}"></div>
 
     <p class="flash error" role="alert" th:unless="${credentialsConfigured}">
@@ -10,62 +23,75 @@
         PayPal call fails and nothing is charged.
     </p>
 
-    <section class="card">
-        <h2>Fault switches</h2>
-        <p class="muted small">
+    <section class="card demo-panel" aria-labelledby="fault-switches">
+        <div class="panel-head">
+            <h2 id="fault-switches">Fault switches</h2>
+            <span class="muted" th:text="${#lists.size(faults) + ' switches'}">3 switches</span>
+        </div>
+        <p class="demo-lead">
             Each switch is one-shot: it changes the next matching PayPal call only, then turns itself off.
-            PayPal mode: <code th:text="${paypalMode}">sandbox</code>
         </p>
-        <table class="table">
-            <thead><tr><th>Fault</th><th>Status</th><th></th></tr></thead>
-            <tbody>
-            <tr th:each="f : ${faults}">
-                <td>
-                    <div th:text="${f.label}">Drop the response of the next capture</div>
-                    <div class="muted small"><code th:text="${f.name}">DROP_NEXT_CAPTURE_RESPONSE</code></div>
-                </td>
-                <td>
+        <ul class="fault-grid">
+            <li class="fault" th:each="f : ${faults}" th:classappend="${f.armed} ? 'is-armed'">
+                <div class="fault-top">
+                    <span class="fault-switch" aria-hidden="true"><span></span></span>
                     <span class="badge" th:classappend="${f.armed} ? 'watch' : 'plain'"
                           th:text="${f.armed} ? 'Armed' : 'Off'">Off</span>
-                </td>
-                <td class="num">
+                </div>
+                <h3 class="fault-label" th:text="${f.label}">Drop the response of the next capture</h3>
+                <p class="fault-hint" th:switch="${f.name}">
+                    <span th:case="'DROP_NEXT_CAPTURE_RESPONSE'">Then top up from a customer page: the top-up lands in doubt, and Resolve credits it once.</span>
+                    <span th:case="'FAIL_NEXT_REFUND_WITH_5XX'">Then ask for a cash-out: the relay tries again with the same request id and it goes through.</span>
+                    <span th:case="'DECLINE_NEXT_REFUND'">Then ask for a cash-out: the refund fails and the money goes back to the balance.</span>
+                </p>
+                <div class="fault-foot">
+                    <code th:text="${f.name}">DROP_NEXT_CAPTURE_RESPONSE</code>
                     <form th:action="@{/admin/faults}" method="post" class="inline">
                         <input type="hidden" name="fault" th:value="${f.name}">
                         <input type="hidden" name="action" th:value="${f.armed} ? 'disarm' : 'arm'">
                         <button type="submit" th:classappend="${f.armed} ? '' : 'primary'"
                                 th:text="${f.armed} ? 'Disarm' : 'Arm'">Arm</button>
                     </form>
-                </td>
-            </tr>
-            </tbody>
-        </table>
+                </div>
+            </li>
+        </ul>
     </section>
 
-    <section class="card">
-        <h2>Refund at PayPal outside the ledger</h2>
-        <p class="muted small">
-            Stands in for a refund made by hand in the PayPal dashboard. It goes straight to PayPal with a fresh
-            request id, skips the fault switches, and writes nothing to the ledger, so the next day close will
-            find a refund it cannot explain.
-        </p>
-        <p class="muted" th:if="${#lists.isEmpty(captured)}">No captured top-ups yet. Top up from a customer page first.</p>
-        <form th:unless="${#lists.isEmpty(captured)}" th:action="@{/admin/faults/outside-refund}" method="post" class="stack">
-            <label>Captured top-up
-                <select name="topupId" required>
-                    <option th:each="t : ${captured}" th:value="${t.id}"
-                            th:text="${t.customerName + ' | ' + @fmt.money(t.amountCents) + ' | capture ' + t.paypalCaptureId}">
-                        Demo Customer A | $25.00 | capture X
-                    </option>
-                </select>
-            </label>
-            <label>Amount in USD
-                <input type="text" name="amount" inputmode="decimal" placeholder="5.00" required pattern="\$?\s*\d{1,9}(\.\d{1,2})?">
-            </label>
-            <label>Note to payer
-                <input type="text" name="note" maxlength="255" placeholder="Sorry about the wait, here is $5 back">
-            </label>
-            <div><button type="submit" class="primary">Refund at PayPal, not in the ledger</button></div>
-        </form>
+    <section class="card demo-panel refund-panel" aria-labelledby="outside-refund">
+        <div class="refund-copy">
+            <h2 id="outside-refund">Refund at PayPal outside the ledger</h2>
+            <p class="muted">
+                Stands in for a refund made by hand in the PayPal dashboard. It goes straight to PayPal with a fresh
+                request id, skips the fault switches, and writes nothing to the ledger, so the next day close will
+                find a refund it cannot explain.
+            </p>
+            <ol class="refund-steps">
+                <li><span class="refund-num" aria-hidden="true">1</span><span>PayPal pays the money back to the card.</span></li>
+                <li><span class="refund-num" aria-hidden="true">2</span><span>The ledger still thinks PayPal holds it.</span></li>
+                <li><span class="refund-num" aria-hidden="true">3</span><span>The next day close finds the gap.</span></li>
+            </ol>
+        </div>
+
+        <div class="refund-form well">
+            <p class="refund-empty" th:if="${#lists.isEmpty(captured)}">No captured top-ups yet. Top up from a customer page first.</p>
+            <form th:unless="${#lists.isEmpty(captured)}" th:action="@{/admin/faults/outside-refund}" method="post" class="stack">
+                <label>Captured top-up
+                    <select name="topupId" required>
+                        <option th:each="t : ${captured}" th:value="${t.id}"
+                                th:text="${t.customerName + ' | ' + @fmt.money(t.amountCents) + ' | capture ' + t.paypalCaptureId}">
+                            Demo Customer A | $25.00 | capture X
+                        </option>
+                    </select>
+                </label>
+                <label>Amount in USD
+                    <span class="money-input"><span aria-hidden="true">$</span><input type="text" name="amount" inputmode="decimal" placeholder="5.00" required pattern="\$?\s*\d{1,9}(\.\d{1,2})?"></span>
+                </label>
+                <label>Note to payer
+                    <input type="text" name="note" maxlength="255" placeholder="Sorry about the wait, here is $5 back">
+                </label>
+                <button type="submit" class="danger">Refund at PayPal, not in the ledger</button>
+            </form>
+        </div>
     </section>
 </main>
 </body>

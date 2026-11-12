@@ -3,67 +3,53 @@
 <body>
 <main class="container">
     <link rel="stylesheet" th:href="@{/css/investigate.css}">
-    <h1>Proposals</h1>
+    <header class="page-header">
+        <div>
+            <h1>Proposals</h1>
+            <p class="page-context">Breaks the close could not explain, and the entry the investigator suggested for each.</p>
+        </div>
+    </header>
     <div th:replace="~{layout/flash :: flash}"></div>
 
-
-    <section class="card">
-        <h2>Open breaks</h2>
-        <p class="muted small" th:if="${aiConfigured}" th:text="${'Investigator: ' + aiInvestigator + '.'}">Investigator: OpenAI gpt-5.4-mini.</p>
-        <p class="muted small" th:unless="${aiConfigured}" th:text="${aiNotConfiguredReason}">AI investigator is not configured.</p>
-        <p class="muted" th:if="${#lists.isEmpty(openBreaks)}">No open breaks. Run the close to look for new ones.</p>
-        <table class="table" th:unless="${#lists.isEmpty(openBreaks)}">
-            <thead>
-            <tr><th>Break</th><th>Kind</th><th>PayPal ref</th><th>Customer</th><th class="num">Amount</th><th>Status</th><th></th></tr>
-            </thead>
-            <tbody>
-            <tr th:each="b : ${openBreaks}">
-                <td th:text="${'#' + b.id}">#1</td>
-                <td th:text="${@fmt.label(b.kind)}">Unbooked refund</td>
-                <td><code th:text="${b.paypalRef}">REF</code></td>
-                <td th:text="${b.customerId != null ? customerNames.get(b.customerId) : ''}">Demo Customer A</td>
-                <td class="num" th:text="${@fmt.money(b.amountCents)}">$0.00</td>
-                <td><span class="badge" th:classappend="${@fmt.tone(b.status)}" th:text="${@fmt.label(b.status)}">Open</span></td>
-                <td>
-                    <form th:if="${canInvestigate and aiConfigured and b.status.name() == 'OPEN'}"
-                          th:action="@{/breaks/{id}/investigate(id=${b.id})}" method="post" class="inline">
-                        <button type="submit" class="primary">Investigate</button>
-                    </form>
-                </td>
-            </tr>
-            </tbody>
-        </table>
+    <section class="card panel-strong">
+        <div class="panel-head">
+            <h2>Open breaks</h2>
+            <span class="investigator-chip" th:if="${aiConfigured}">
+                <span class="dot ok" aria-hidden="true"></span><span th:text="${'Investigator: ' + aiInvestigator + '.'}">Investigator: OpenAI gpt-5.4-mini.</span>
+            </span>
+            <span class="investigator-chip is-off" th:unless="${aiConfigured}">
+                <span class="dot bad" aria-hidden="true"></span><span th:text="${aiNotConfiguredReason}">AI investigator is not configured.</span>
+            </span>
+        </div>
+        <div class="empty-state" th:if="${#lists.isEmpty(openBreaks)}">
+            <div class="empty-copy">
+                <h3 class="empty-title">Nothing to explain</h3>
+                <p class="empty-text">No open breaks. Run the close to look for new ones.</p>
+                <div class="cluster"><a class="btn" th:href="@{/close}">Day close</a></div>
+            </div>
+            <div class="empty-ghost" aria-hidden="true"><span></span><span></span></div>
+        </div>
+        <ul class="items" th:unless="${#lists.isEmpty(openBreaks)}">
+            <th:block th:each="b : ${openBreaks}">
+                <li th:replace="~{investigate/fragments :: breakItem(${b}, ${b.customerId != null ? customerNames.get(b.customerId) : null}, ${canInvestigate}, ${aiConfigured})}"></li>
+            </th:block>
+        </ul>
     </section>
 
     <section class="card">
-        <h2>All proposals</h2>
+        <div class="panel-head">
+            <h2>All proposals</h2>
+            <span class="muted" th:unless="${#lists.isEmpty(proposals)}" th:text="${@fmt.count(#lists.size(proposals), 'proposal', 'proposals')}">3 proposals</span>
+        </div>
         <p class="muted" th:if="${#lists.isEmpty(proposals)}">No proposals yet.</p>
-        <table class="table" th:unless="${#lists.isEmpty(proposals)}">
-            <thead>
-            <tr><th>Proposal</th><th>Break</th><th>Customer</th><th class="num">Amount</th><th>Treatment</th><th>Status</th><th>Model</th><th>Maker</th><th>Decided by</th><th>Created</th></tr>
-            </thead>
-            <tbody>
-            <tr th:each="p : ${proposals}">
-                <td><a th:href="@{/proposals/{id}(id=${p.id})}" th:text="${'#' + p.id}">#1</a></td>
-                <td>
-                    <span th:text="${'#' + p.breakId}">#1</span>
-                    <span class="muted small" th:text="${@fmt.label(p.breakKind)}">Unbooked refund</span>
-                </td>
-                <td th:text="${p.customerName}">Demo Customer A</td>
-                <td class="num" th:text="${@fmt.money(p.amountCents)}">$0.00</td>
-                <td><span class="badge" th:classappend="${@fmt.tone(p.treatment)}" th:text="${p.treatment != null ? p.treatment.label() : ''}">Goodwill</span></td>
-                <td th:with="needsHuman=${p.treatment != null and p.treatment.name() == 'NEEDS_HUMAN'}">
-                    <span class="badge" th:classappend="${needsHuman} ? 'watch' : ${@fmt.tone(p.status)}"
-                          th:text="${needsHuman} ? 'Needs a human' : ${@fmt.label(p.status)}">Pending approval</span>
-                </td>
-                <td class="muted small" th:text="${p.modelLabel()}">OpenAI gpt-5.4-mini</td>
-                <td th:text="${@fmt.actor(p.createdBy)}">maker</td>
-                <td th:text="${@fmt.actor(p.decidedBy)}"></td>
-                <td class="muted small" th:text="${@fmt.time(p.createdAt)}"></td>
-            </tr>
-            </tbody>
-        </table>
+        <ul class="items" th:unless="${#lists.isEmpty(proposals)}">
+            <th:block th:each="p : ${proposals}">
+                <li th:replace="~{investigate/fragments :: proposalItem(${p})}"></li>
+            </th:block>
+        </ul>
     </section>
+
+    <div th:replace="~{investigate/fragments :: thinking}"></div>
 </main>
 </body>
 </html>

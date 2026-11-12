@@ -2,14 +2,98 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Top-ups', ~{::main})}">
 <body>
 <main class="container">
-    <h1>Top-ups</h1>
+    <link rel="stylesheet" th:href="@{/css/topup.css}">
+
+    <header class="page-header">
+        <div>
+            <h1>Top-ups</h1>
+            <p class="page-context">Customers add money by card on their private page. This is what PayPal said about each one.</p>
+        </div>
+        <div class="page-actions">
+            <a class="btn quiet" th:href="@{/close/webhooks}">PayPal webhooks</a>
+            <a class="btn" th:if="${#strings.contains(currentRoles, 'MAKER')}" th:href="@{/admin/faults}">Demo faults</a>
+        </div>
+    </header>
     <div th:replace="~{layout/flash :: flash}"></div>
 
+    <!--/* One panel per top-up whose outcome is unknown (IN_DOUBT, or CREATED with no answer yet),
+         laid out as on the "Outcome unknown" state board. th:each runs before th:if. */-->
+    <section class="card panel-strong unknown" th:each="t : ${topups}" th:if="${t.state.unresolved()}"
+             th:with="name=${t.customerName ?: 'Customer'}"
+             th:attr="aria-label=${'Outcome unknown for ' + name}">
+        <header class="unknown-head">
+            <span class="avatar" aria-hidden="true" th:classappend="${'tone-' + ((t.customerId - 1) % 3)}"
+                  th:text="${(name.substring(0, 1) + name.substring(name.lastIndexOf(' ') + 1, name.lastIndexOf(' ') + 2)).toUpperCase()}">PR</span>
+            <div class="unknown-who">
+                <h2 th:text="${name}">Priya Raman</h2>
+                <span class="unknown-sub" th:text="${'Top-up ' + @fmt.money(t.amountCents) + ', not booked yet'}">Top-up $20.00, not booked yet</span>
+            </div>
+            <span class="unknown-chip">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path class="fill" d="M12 3.5a8.5 8.5 0 0 1 0 17z"/></svg>
+                Outcome unknown
+            </span>
+        </header>
+
+        <div class="unknown-body">
+            <ol class="unknown-steps">
+                <li class="step-done">
+                    <span class="step-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></span>
+                    <span class="step-text">
+                        <span class="step-title">Sent to PayPal</span>
+                        <span class="step-detail" th:text="${@fmt.time(t.createdAt)}">2026-11-13 10:00:00 UTC</span>
+                    </span>
+                </li>
+                <li class="step-lost">
+                    <span class="step-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path class="fill" d="M12 4a8 8 0 0 1 0 16z"/></svg></span>
+                    <span class="step-text">
+                        <span class="step-title" th:if="${t.state.name() == 'IN_DOUBT'}">PayPal's answer was lost on the way back</span>
+                        <span class="step-title" th:unless="${t.state.name() == 'IN_DOUBT'}">PayPal has not answered yet</span>
+                        <span class="step-detail" th:if="${t.failureReason != null}" th:text="${t.failureReason}">Read timed out</span>
+                    </span>
+                </li>
+                <li class="step-next">
+                    <span class="step-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 7l5 5-5 5"/></svg></span>
+                    <span class="step-text">
+                        <span class="step-title">Next: ask PayPal again with the same request</span>
+                        <span class="step-detail">PayPal sees it is the same top-up, so no double charge.</span>
+                    </span>
+                </li>
+                <li class="step-later">
+                    <span class="step-mark" aria-hidden="true"></span>
+                    <span class="step-text">
+                        <span class="step-title">Then <span th:text="${name.split(' ')[0]}">Priya</span>'s balance gets
+                            <span th:text="${@fmt.money(t.amountCents)}">$20.00</span>, or it closes as not paid</span>
+                    </span>
+                </li>
+            </ol>
+
+            <div class="unknown-side">
+                <div class="unknown-figure">
+                    <span class="stat-label">Waiting for PayPal</span>
+                    <span class="money money-lg" th:text="${@fmt.money(t.amountCents)}">$20.00</span>
+                    <span class="unknown-figure-note">Not on <span th:text="${name.split(' ')[0]}">Priya</span>'s balance until PayPal answers</span>
+                </div>
+                <p class="unknown-warn">
+                    <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+                    <span>While this is open, do not take a second payment or give money back by hand.</span>
+                </p>
+                <div class="unknown-act">
+                    <span class="unknown-note" th:if="${#strings.contains(currentRoles, 'MAKER')}">Backed asks again by itself. Resolve now asks PayPal this minute.</span>
+                    <span class="unknown-note" th:unless="${#strings.contains(currentRoles, 'MAKER')}">Backed asks again by itself, and a maker can ask PayPal now.</span>
+                    <form th:if="${#strings.contains(currentRoles, 'MAKER') and (t.state.name() == 'IN_DOUBT' or t.state.name() == 'CREATED')}"
+                          th:action="@{/topups/{id}/resolve(id=${t.id})}" method="post" class="inline">
+                        <button type="submit" class="primary">Resolve now</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <section class="stats">
-        <div class="stat">
+        <div class="stat" th:classappend="${inDoubtCount > 0} ? 'stat-watch'">
             <span class="stat-label">In doubt</span>
             <span class="stat-value">
-                <span class="badge" th:classappend="${inDoubtCount > 0} ? 'watch' : 'ok'"
+                <span class="badge badge-lg" th:classappend="${inDoubtCount > 0} ? 'watch' : 'ok'"
                       th:text="${inDoubtCount + ' in doubt'}">0 in doubt</span>
             </span>
             <span class="stat-note muted">
@@ -29,53 +113,53 @@
     </section>
 
     <section class="card">
-        <h2>Recent top-ups <span class="muted small">newest first</span></h2>
-        <p class="muted small">
+        <div class="panel-head">
+            <h2>Recent top-ups</h2>
+            <span class="muted">Newest first</span>
+        </div>
+
+        <div class="empty-state" th:if="${#lists.isEmpty(topups)}">
+            <div class="empty-copy">
+                <h3 class="empty-title">No top-ups yet.</h3>
+                <p class="empty-text">When a customer adds money by card on their private page, it shows up here with PayPal's answer.</p>
+            </div>
+            <div class="empty-ghost" aria-hidden="true"><span></span><span></span></div>
+        </div>
+
+        <ul class="topup-list" th:unless="${#lists.isEmpty(topups)}">
+            <li class="topup" th:each="t : ${topups}" th:with="name=${t.customerName ?: 'Customer'}"
+                th:classappend="${t.state.unresolved()} ? 'is-open'">
+                <div class="topup-who">
+                    <span class="avatar avatar-sm" aria-hidden="true" th:classappend="${'tone-' + ((t.customerId - 1) % 3)}"
+                          th:text="${(name.substring(0, 1) + name.substring(name.lastIndexOf(' ') + 1, name.lastIndexOf(' ') + 2)).toUpperCase()}">ML</span>
+                    <span class="person-text">
+                        <span class="person-name" th:text="${name}">Demo Customer A</span>
+                        <span class="person-role" th:text="${@fmt.time(t.createdAt)}">2026-01-01 10:00:00 UTC</span>
+                    </span>
+                </div>
+                <div class="topup-state">
+                    <span class="badge" th:classappend="${@fmt.tone(t.state)}" th:text="${@fmt.label(t.state)}">Captured</span>
+                    <span class="topup-reason" th:if="${t.failureReason != null}" th:text="${t.failureReason}"></span>
+                </div>
+                <div class="topup-money">
+                    <span class="money money-md" th:text="${@fmt.money(t.amountCents)}">$0.00</span>
+                    <span class="topup-split" th:if="${t.feeCents != null or t.netCents != null}">
+                        PayPal fee <b th:text="${@fmt.money(t.feeCents)}">$0.00</b>, net <b th:text="${@fmt.money(t.netCents)}">$0.00</b>
+                    </span>
+                </div>
+                <dl class="topup-ids">
+                    <div th:if="${t.paypalOrderId != null}"><dt>Order</dt><dd><code th:text="${t.paypalOrderId}">ORDER</code></dd></div>
+                    <div th:if="${t.paypalCaptureId != null}"><dt>Capture</dt><dd><code th:text="${t.paypalCaptureId}">CAPTURE</code></dd></div>
+                    <div><dt>Request</dt><dd><code th:text="${t.requestId}">topup-...</code></dd></div>
+                </dl>
+            </li>
+        </ul>
+
+        <p class="topup-footnote">
             Resolve re-sends the original request to PayPal with the same PayPal-Request-Id. If PayPal already
             captured it, the same capture comes back and the customer is credited once; the day close does
             the same for every top-up still in doubt.
         </p>
-        <div style="overflow-x: auto">
-        <table class="table">
-            <thead>
-            <tr>
-                <th>Created</th>
-                <th>Customer</th>
-                <th>Status</th>
-                <th class="num">Amount</th>
-                <th class="num">PayPal fee</th>
-                <th class="num">Net</th>
-                <th>PayPal ids</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:each="t : ${topups}">
-                <td class="small" th:text="${@fmt.time(t.createdAt)}">2026-01-01 10:00:00 UTC</td>
-                <td th:text="${t.customerName}">Demo Customer A</td>
-                <td>
-                    <span class="badge" th:classappend="${@fmt.tone(t.state)}" th:text="${@fmt.label(t.state)}">Captured</span>
-                    <div class="muted small" th:if="${t.failureReason != null}" th:text="${t.failureReason}"></div>
-                </td>
-                <td class="num" th:text="${@fmt.money(t.amountCents)}">$0.00</td>
-                <td class="num" th:text="${@fmt.money(t.feeCents)}"></td>
-                <td class="num" th:text="${@fmt.money(t.netCents)}"></td>
-                <td class="small">
-                    <div th:if="${t.paypalOrderId != null}">Order <code th:text="${t.paypalOrderId}">ORDER</code></div>
-                    <div th:if="${t.paypalCaptureId != null}">Capture <code th:text="${t.paypalCaptureId}">CAPTURE</code></div>
-                    <div class="muted">Request <code th:text="${t.requestId}">topup-...</code></div>
-                </td>
-                <td>
-                    <form th:if="${#strings.contains(currentRoles, 'MAKER') and (t.state.name() == 'IN_DOUBT' or t.state.name() == 'CREATED')}"
-                          th:action="@{/topups/{id}/resolve(id=${t.id})}" method="post" class="inline">
-                        <button type="submit" class="primary">Resolve</button>
-                    </form>
-                </td>
-            </tr>
-            <tr th:if="${#lists.isEmpty(topups)}"><td colspan="8" class="muted">No top-ups yet.</td></tr>
-            </tbody>
-        </table>
-        </div>
     </section>
 </main>
 </body>

@@ -2,59 +2,94 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Dashboard', ~{::main})}">
 <body>
 <main class="container">
-    <h1>Dashboard</h1>
+    <header class="page-header">
+        <div>
+            <h1>Dashboard</h1>
+            <p class="page-context">What the shop owes its customers, and what PayPal holds for it.</p>
+        </div>
+    </header>
 
-    <section class="stats">
-        <div class="stat">
+    <section class="card panel-hero panel-strong dash-hero" aria-label="Balances">
+        <div class="dash-figure">
             <span class="stat-label">Owed to customers</span>
-            <span class="stat-value num" th:text="${@fmt.money(owedCents)}">$0.00</span>
-            <span class="stat-note" th:if="${owedCents != prepaidControlCents}">
+            <span class="money money-xl" th:text="${@fmt.money(owedCents)}">$0.00</span>
+            <span class="stat-note cluster" th:if="${owedCents != prepaidControlCents}">
                 <span class="badge bad">Mismatch</span> ledger says <span class="num" th:text="${@fmt.money(prepaidControlCents)}">$0.00</span>
             </span>
-            <span class="stat-note muted" th:unless="${owedCents != prepaidControlCents}">Matches the ledger</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Held at PayPal, per the ledger</span>
-            <span class="stat-value num" th:text="${@fmt.money(paypalCashCents)}">$0.00</span>
-            <span class="stat-note muted">Capture net amounts minus refunds</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Last close</span>
-            <span class="stat-value" th:if="${lastClose == null}"><span class="badge plain">Not run</span></span>
-            <th:block th:if="${lastClose != null}">
-                <span class="stat-value">
-                    <span class="badge" th:classappend="${@fmt.tone(lastClose.status)}" th:text="${@fmt.label(lastClose.status)}">Closed</span>
-                </span>
-                <span class="stat-note muted">
-                    <span th:text="${@fmt.date(lastClose.businessDate)}">2026-01-01</span>
-                    by <span th:text="${@fmt.actor(lastClose.runBy)}">maker</span>
-                </span>
-            </th:block>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Needs attention</span>
-            <span class="stat-value">
-                <span class="badge" th:classappend="${openBreaks > 0} ? 'bad' : 'ok'" th:text="${@fmt.count(openBreaks, 'open break', 'open breaks')}">0 open breaks</span>
-            </span>
-            <span class="stat-note">
-                <span class="badge" th:classappend="${inDoubtTopups > 0} ? 'watch' : 'ok'" th:text="${@fmt.count(inDoubtTopups, 'top-up in doubt', 'top-ups in doubt')}">0 top-ups in doubt</span>
+            <span class="stat-note muted cluster" th:unless="${owedCents != prepaidControlCents}">
+                <span class="badge ok">Matches the ledger</span>
+                <span>All customer balances added up</span>
             </span>
         </div>
+
+        <ul class="status-list">
+            <li>
+                <span class="status-icon ok" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></span>
+                <span class="status-text">
+                    <span class="status-title">Held at PayPal, per the ledger</span>
+                    <span class="status-detail">Capture net amounts minus refunds</span>
+                </span>
+                <span class="status-value money money-md" th:text="${@fmt.money(paypalCashCents)}">$0.00</span>
+            </li>
+            <li>
+                <span class="status-icon" aria-hidden="true"
+                      th:with="closeTone=${lastClose == null ? 'plain' : @fmt.tone(lastClose.status)}"
+                      th:classappend="${closeTone}">
+                    <svg th:if="${lastClose == null}" viewBox="0 0 24 24"><path d="M7 12h10"/></svg>
+                    <svg th:if="${closeTone == 'ok'}" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>
+                    <svg th:if="${lastClose != null and closeTone != 'ok'}" viewBox="0 0 24 24"><path d="M12 6v8"/><path d="M12 18.5v0.5"/></svg>
+                </span>
+                <span class="status-text">
+                    <span class="status-title">Last close</span>
+                    <span class="status-detail" th:if="${lastClose == null}">The day has not been closed yet</span>
+                    <span class="status-detail" th:if="${lastClose != null}">
+                        <span th:text="${@fmt.date(lastClose.businessDate)}">2026-01-01</span>
+                        by <span th:text="${@fmt.actor(lastClose.runBy)}">maker</span>
+                    </span>
+                </span>
+                <span class="status-value">
+                    <span class="badge plain" th:if="${lastClose == null}">Not run</span>
+                    <span class="badge" th:if="${lastClose != null}" th:classappend="${@fmt.tone(lastClose.status)}" th:text="${@fmt.label(lastClose.status)}">Closed</span>
+                </span>
+            </li>
+            <li>
+                <span class="status-icon" aria-hidden="true" th:classappend="${openBreaks > 0 or inDoubtTopups > 0} ? 'watch' : 'ok'">
+                    <svg th:if="${openBreaks > 0 or inDoubtTopups > 0}" viewBox="0 0 24 24"><path d="M12 6v8"/><path d="M12 18.5v0.5"/></svg>
+                    <svg th:unless="${openBreaks > 0 or inDoubtTopups > 0}" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>
+                </span>
+                <span class="status-text">
+                    <span class="status-title">Needs attention</span>
+                    <span class="status-detail cluster">
+                        <span class="badge" th:classappend="${openBreaks > 0} ? 'bad' : 'ok'" th:text="${@fmt.count(openBreaks, 'open break', 'open breaks')}">0 open breaks</span>
+                        <span class="badge" th:classappend="${inDoubtTopups > 0} ? 'watch' : 'ok'" th:text="${@fmt.count(inDoubtTopups, 'top-up in doubt', 'top-ups in doubt')}">0 top-ups in doubt</span>
+                    </span>
+                </span>
+            </li>
+        </ul>
     </section>
 
     <section class="card">
-        <h2>Customers</h2>
+        <div class="panel-head">
+            <h2>Customers</h2>
+            <span class="muted">Each customer has a private page with their balance</span>
+        </div>
         <table class="table">
             <thead>
             <tr><th>Customer</th><th>Private page</th><th class="num">Balance</th></tr>
             </thead>
             <tbody>
             <tr th:each="c : ${customers}">
-                <td th:text="${c.name}">Demo Customer A</td>
-                <td><a th:href="@{/c/{token}(token=${c.token})}" th:text="${'/c/' + c.token}">/c/token</a></td>
-                <td class="num" th:text="${@fmt.money(c.balanceCents)}">$0.00</td>
+                <td>
+                    <span class="customer-cell">
+                        <span class="avatar avatar-sm" aria-hidden="true" th:classappend="${'tone-' + ((c.id - 1) % 3)}"
+                              th:text="${(c.name.substring(0, 1) + c.name.substring(c.name.lastIndexOf(' ') + 1, c.name.lastIndexOf(' ') + 2)).toUpperCase()}">DA</span>
+                        <span th:text="${c.name}">Demo Customer A</span>
+                    </span>
+                </td>
+                <td><a class="mono" th:href="@{/c/{token}(token=${c.token})}" th:text="${'/c/' + c.token}">/c/token</a></td>
+                <td class="num money-cell" th:text="${@fmt.money(c.balanceCents)}">$0.00</td>
             </tr>
-            <tr th:if="${#lists.isEmpty(customers)}"><td colspan="3" class="muted">No customers yet.</td></tr>
+            <tr th:if="${#lists.isEmpty(customers)}"><td colspan="3" class="muted empty">No customers yet.</td></tr>
             </tbody>
             <tfoot>
             <tr><th colspan="2">Total owed</th><th class="num" th:text="${@fmt.money(owedCents)}">$0.00</th></tr>

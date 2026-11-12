@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <!--/* Flash messages. Include with <div th:replace="~{layout/flash :: flash}"></div>.
      Controllers set RedirectAttributes flash attributes "notice" (done), "pending" (waiting for
-     PayPal or still unresolved) or "error". */-->
+     PayPal or still unresolved) or "error". Styled by .flash in app.css: a tinted soft rectangle
+     with a signal tile on the left (green done, amber waiting, coral error). */-->
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
 <div th:fragment="flash" class="flash-area">

@@ -1,43 +1,597 @@
 <!DOCTYPE html>
-<!--/* Fragments for the proposal page. */-->
+<!--/* Blocks for the proposal pages. Each block is self-contained, so a page can place it anywhere.
+     relay(page)        who signs the entry: maker, checker, posted; the one action open to the viewer
+     diff(page)         what approving changes in the books, suggested treatment against the one not chosen
+     diffTable(plan, page, live)   one treatment's entry lines and balances, books now against after posting
+     deltaCells(now, eff)          two cells: a balance now and after a change
+     checksCard(checks, title)     the code's checks with a passed count
+     checklist(checks)  the validator's checklist
+     judgement(page)    the investigator's reasoning, the treatment it turned down, its note to the customer
+     evidence(page)     the sources it read with its quotes marked, and the quote check
+     draft(plan)        a drafted entry as a plain table (kept for older callers)
+     breakItem(b, name, canInvestigate, aiConfigured)   an open break in the list, with the Investigate form
+     proposalItem(p)    a proposal in the list
+     thinking           the waiting state while a request to the investigator is in flight;
+                        include it once on any page whose investigate forms carry data-investigate */-->
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
 
-<!--/* A drafted entry: its lines and what it does to the customer and the shop. */-->
+<!--/* ============================================================ Approval relay */-->
+<section class="card panel-strong relay" th:fragment="relay(page)" aria-labelledby="relay-title"
+         th:with="p=${page.proposal}, st=${page.proposal.status.name()}, approved=${st == 'APPROVED'},
+                  dismissed=${st == 'DISMISSED'}, pending=${page.pending()}, blocked=${st == 'REJECTED_BY_VALIDATOR' or st == 'DRAFT'},
+                  needsHuman=${p.treatment != null and p.treatment.name() == 'NEEDS_HUMAN'},
+                  who=${page.customerName ?: 'The customer'},
+                  mk=${p.createdBy ?: 'maker'},
+                  mkInitials=${mk == 'maker' ? 'mk' : (mk == 'checker' ? 'ck' : (#strings.length(mk) > 1 ? #strings.substring(mk, 0, 2) : mk))},
+                  ck=${approved ? p.approvedBy : (dismissed ? p.decidedBy : null)},
+                  ckInitials=${ck == null ? 'ck' : (ck == 'maker' ? 'mk' : (ck == 'checker' ? 'ck' : (#strings.length(ck) > 1 ? #strings.substring(ck, 0, 2) : ck)))},
+                  hasEntry=${page.chosen != null and !#lists.isEmpty(page.chosen.lines)}">
+    <div class="relay-head">
+        <div class="relay-heading">
+            <h2 id="relay-title">
+                <th:block th:unless="${needsHuman}">Book <span th:text="${who}">Maya Lindqvist</span>'s <span th:text="${@fmt.money(page.brk.amountCents)}">$4.00</span>
+                    as <span th:text="${p.treatment != null ? #strings.toLowerCase(p.treatment.label()) : 'a correction'}">goodwill</span></th:block>
+                <th:block th:if="${needsHuman}"><span th:text="${who}">Maya Lindqvist</span>'s <span th:text="${@fmt.money(page.brk.amountCents)}">$4.00</span> needs a person to decide</th:block>
+            </h2>
+            <p class="relay-sub" th:if="${hasEntry}"><th:block th:each="l, it : ${page.chosen.lines}"><th:block
+                    th:text="${(it.first ? (l.debitCents > 0 ? 'Debit ' : 'Credit ') : (l.debitCents > 0 ? 'debit ' : 'credit '))
+                              + #strings.replace(@fmt.label(l.account), 'Paypal', 'PayPal') + ' '
+                              + @fmt.money(l.debitCents > 0 ? l.debitCents : l.creditCents) + (it.last ? '' : ', ')}">Debit Goodwill expense $4.00, </th:block></th:block></p>
+            <p class="relay-sub" th:unless="${hasEntry}">No entry was drafted, so there is nothing to sign.</p>
+        </div>
+        <span class="relay-viewer" th:if="${currentUser != null}">
+            <span class="avatar avatar-sm" aria-hidden="true" th:classappend="${page.viewerIsChecker ? 'checker' : (page.viewerIsMaker ? 'maker' : '')}"
+                  th:text="${currentUser == 'maker' ? 'mk' : (currentUser == 'checker' ? 'ck' : (currentUser == 'clerk' ? 'cl' : (#strings.length(currentUser) > 1 ? #strings.substring(currentUser, 0, 2) : currentUser)))}">ck</span>
+            <span>Signed in as <strong th:text="${currentUser}">checker</strong></span>
+        </span>
+    </div>
+
+    <ol class="relay-steps" aria-label="Who signs this entry" th:classappend="${approved} ? 'is-posted'">
+        <!--/* 1. Maker */-->
+        <li class="relay-step is-done">
+            <span class="relay-node">
+                <span class="relay-avatar maker" aria-hidden="true" th:text="${mkInitials}">mk</span>
+                <span class="relay-tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></span>
+            </span>
+            <span class="relay-role">Maker</span>
+            <span class="relay-detail"><strong th:text="${mk}">maker</strong> asked the investigator</span>
+            <span class="relay-detail" th:text="${'Prepared ' + @fmt.time(p.createdAt)}">Prepared 2026-11-13 10:31</span>
+            <span class="badge relay-chip done">Done</span>
+        </li>
+
+        <!--/* 2. Checker */-->
+        <li class="relay-step" th:classappend="${approved or dismissed ? 'is-done' : (page.canDecide() ? 'is-turn' : '')}">
+            <span class="relay-node">
+                <span class="relay-avatar checker" aria-hidden="true" th:classappend="${blocked or (pending and !page.canDecide())} ? 'is-empty'"
+                      th:text="${ckInitials}">ck</span>
+                <span class="relay-tick" aria-hidden="true" th:if="${approved}"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></span>
+            </span>
+            <span class="relay-role">Checker
+                <span class="badge watch" th:if="${page.canDecide()}">Your turn</span>
+            </span>
+
+            <th:block th:if="${approved}">
+                <span class="relay-detail">Approved by <strong th:text="${p.approvedBy}">checker</strong></span>
+                <span class="relay-detail" th:text="${'on ' + @fmt.time(p.decidedAt)}">on 2026-11-13 10:40</span>
+                <span class="badge relay-chip done">Done</span>
+            </th:block>
+            <th:block th:if="${dismissed}">
+                <span class="relay-detail">Dismissed by <strong th:text="${p.decidedBy}">checker</strong></span>
+                <span class="relay-detail" th:text="${'on ' + @fmt.time(p.decidedAt)}">on 2026-11-13 10:40</span>
+                <span class="badge plain relay-chip">Dismissed</span>
+            </th:block>
+            <th:block th:if="${blocked}">
+                <span class="relay-detail" th:if="${needsHuman}">No entry to approve. A person decides this one by hand.</span>
+                <span class="relay-detail" th:unless="${needsHuman}">Cannot approve: the code's checks failed.</span>
+                <span class="badge bad relay-chip">Stopped</span>
+            </th:block>
+            <th:block th:if="${pending}">
+                <span class="relay-detail relay-rule" th:if="${page.viewerIsMaker}">You created this proposal, so a different person with the checker role approves it.</span>
+                <span class="relay-detail relay-rule" th:unless="${page.viewerIsMaker}">Has to be someone other than <strong th:text="${mk}">maker</strong></span>
+                <span class="badge watch relay-chip" th:unless="${page.canDecide()}">Waiting for a checker</span>
+            </th:block>
+
+            <div class="relay-actions" th:if="${page.canDecide() or page.canDismiss()}">
+                <form th:if="${page.canDismiss()}" th:action="@{/proposals/{id}/dismiss(id=${p.id})}" method="post" class="inline">
+                    <button type="submit">Dismiss</button>
+                </form>
+                <form th:if="${page.canDecide()}" th:action="@{/proposals/{id}/approve(id=${p.id})}" method="post" class="inline">
+                    <button type="submit" class="primary"><svg class="btn-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>Approve and post</button>
+                </form>
+            </div>
+        </li>
+
+        <!--/* 3. Posted */-->
+        <li class="relay-step" th:classappend="${approved} ? 'is-done'">
+            <span class="relay-node">
+                <span class="relay-avatar ledger" aria-hidden="true" th:classappend="${approved} ? '' : 'is-empty'">
+                    <svg viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M9 9h6M9 13h6"/></svg>
+                </span>
+                <span class="relay-tick" aria-hidden="true" th:if="${approved}"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></span>
+            </span>
+            <span class="relay-role" th:if="${approved}">Journal entry <strong th:text="${'#' + p.postedEntryId}">#1</strong></span>
+            <span class="relay-role" th:unless="${approved}">Posted</span>
+            <th:block th:if="${approved}">
+                <span class="relay-detail" th:if="${page.postedEntry != null}" th:text="${'dated ' + @fmt.date(page.postedEntry.businessDate)}">dated 2026-11-14</span>
+                <span class="relay-detail">created by <span th:text="${p.createdBy}">maker</span></span>
+                <span class="badge relay-chip done">Done</span>
+            </th:block>
+            <th:block th:if="${pending}">
+                <span class="relay-detail">Happens on approval, dated the next business date</span>
+                <span class="badge plain relay-chip">Not yet</span>
+            </th:block>
+            <th:block th:if="${dismissed or blocked}">
+                <span class="relay-detail">Nothing was posted</span>
+                <span class="badge plain relay-chip">Not posted</span>
+            </th:block>
+        </li>
+    </ol>
+
+    <p class="relay-foot" th:if="${page.canDecide()}">Approving posts the chosen entry on the next business date, with
+        <strong th:text="${p.createdBy}">maker</strong> as maker and you as checker, then re-runs the close.</p>
+</section>
+
+<!--/* ============================================================ Before and after */-->
+<section class="card diff" th:fragment="diff(page)" aria-labelledby="diff-title"
+         th:with="p=${page.proposal}, live=${page.pending()}, approved=${p.status.name() == 'APPROVED'},
+                  who=${page.customerName ?: 'The customer'}, alt=${page.alternative},
+                  needsHuman=${p.treatment != null and p.treatment.name() == 'NEEDS_HUMAN'}">
+    <header class="diff-head">
+        <div class="diff-heading">
+            <h2 id="diff-title" th:text="${approved ? 'What approving changed in the books' : 'What approving changes in the books'}">What approving changes in the books</h2>
+            <p class="diff-sub" th:if="${needsHuman}">No treatment fits the evidence well enough, so no entry was drafted.</p>
+            <p class="diff-sub" th:unless="${needsHuman}"><span th:text="${who}">Maya Lindqvist</span>'s <span th:text="${@fmt.money(page.brk.amountCents)}">$4.00</span>
+                <span th:text="${#strings.toLowerCase(@fmt.label(page.brk.kind))}">unbooked refund</span>, booked as the investigator suggests</p>
+        </div>
+        <div class="diff-toggle" role="radiogroup" aria-label="Show the books after" th:if="${alt != null and page.chosen != null}">
+            <input type="radio" name="diff-view" id="diff-view-chosen" value="chosen" checked>
+            <label for="diff-view-chosen"><span th:text="${p.treatment != null ? p.treatment.label() : 'Chosen'}">Goodwill</span>
+                <span class="diff-suggested">Suggested</span></label>
+            <input type="radio" name="diff-view" id="diff-view-alt" value="alternative">
+            <label for="diff-view-alt" th:text="${alt.plan.treatment.label()}">Balance returned</label>
+        </div>
+    </header>
+
+    <!--/* The suggested treatment */-->
+    <div class="diff-option diff-option-chosen">
+        <h3 class="diff-option-title">Chosen: <span th:text="${p.treatment != null ? p.treatment.label() : 'None'}">Goodwill</span></h3>
+        <div class="diff-body">
+            <div class="diff-main">
+                <div th:replace="~{investigate/fragments :: diffTable(${page.chosen}, ${page}, ${live})}"></div>
+            </div>
+            <aside class="diff-aside">
+                <div class="diff-card" th:if="${page.paypal != null and !#lists.isEmpty(page.noteSegments)}">
+                    <h3 th:text="${#lists.isEmpty(page.noteSegments.?[marked]) ? 'PayPal''s note to the payer' : 'Quoted from PayPal''s note'}">Quoted from PayPal's note</h3>
+                    <p class="diff-quote">&ldquo;<th:block th:each="s : ${page.noteSegments}"><mark th:if="${s.marked}" th:text="${s.text}"></mark><th:block th:unless="${s.marked}" th:text="${s.text}"></th:block></th:block>&rdquo;</p>
+                    <span class="diff-quote-note" th:if="${page.output != null and page.output.confidence != null}"
+                          th:text="${@fmt.label(page.output.confidence) + ' confidence, read by ' + (p.aiProvider != null ? p.modelLabel() : page.output.model)}">High confidence, read by OpenAI gpt-5.4-mini</span>
+                </div>
+            </aside>
+        </div>
+        <div class="diff-checks" th:replace="~{investigate/fragments :: checksCard(${page.checks}, 'Checked by code')}"></div>
+    </div>
+
+    <!--/* The treatment the investigator turned down */-->
+    <div class="diff-option diff-option-alt" th:if="${alt != null}">
+        <h3 class="diff-option-title">Not chosen: <span th:text="${alt.plan.treatment.label()}">Balance returned</span></h3>
+        <p class="diff-why" th:if="${page.output != null and page.output.rejectedBecause != null}" th:text="${page.output.rejectedBecause}">Why not</p>
+        <div class="diff-body is-single">
+            <div class="diff-main">
+                <div th:replace="~{investigate/fragments :: diffTable(${alt.plan}, ${page}, ${live})}"></div>
+            </div>
+        </div>
+        <div th:replace="~{investigate/fragments :: checksCard(${alt.checks}, 'Would the validator pass it?')}"></div>
+    </div>
+</section>
+
+<!--/* One treatment: entry lines, then balances now and after posting. live is true while the proposal waits. */-->
+<div class="diff-table-wrap" th:fragment="diffTable(plan, page, live)"
+     th:with="who=${page.customerName ?: 'Customer'},
+              approved=${page.proposal.status.name() == 'APPROVED'},
+              hasLines=${plan != null and !#lists.isEmpty(plan.lines)}">
+    <div class="diff-problems" th:if="${plan == null}"><p>No draft.</p></div>
+    <div class="diff-problems" th:if="${plan != null and !#lists.isEmpty(plan.problems)}">
+        <p th:text="${#strings.listJoin(plan.problems, ' ')}">Why no entry</p>
+    </div>
+    <th:block th:if="${hasLines}">
+        <table class="diff-table"
+               th:with="bals=${live ? @ledgerQueries.accountBalances() : null},
+                        cashSel=${live ? bals.?[account.name() == 'PAYPAL_CASH'] : null},
+                        cashNow=${live ? (#lists.isEmpty(cashSel) ? 0L : cashSel[0].balanceCents) : null},
+                        custNow=${live and page.brk.customerId != null ? @ledgerQueries.customerPrepaid(page.brk.customerId) : null},
+                        run=${live ? @closeRuns.latest().orElse(null) : null},
+                        gapNow=${run != null ? run.unexplainedCents : null}">
+            <caption class="visually-hidden" th:text="${live ? 'Books now and after posting' : 'The entry and what it changes'}">Books now and after posting</caption>
+            <thead>
+            <tr>
+                <th scope="col">Line</th>
+                <th scope="col" class="num" th:text="${live ? 'Books now' : 'Status'}">Books now</th>
+                <th scope="col" class="num" th:text="${live ? 'After posting' : 'Change'}">After posting</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr class="diff-section"><th scope="colgroup" colspan="3"
+                    th:text="${live ? 'Entry to post' : (approved ? 'Entry posted' : 'Entry drafted')}">Entry to post</th></tr>
+            <tr th:each="l : ${plan.lines}">
+                <th scope="row" th:classappend="${l.creditCents > 0} ? 'indent'"
+                    th:text="${(l.debitCents > 0 ? 'Debit ' : 'Credit ') + #strings.replace(@fmt.label(l.account), 'Paypal', 'PayPal')}">Debit Goodwill expense</th>
+                <td class="num diff-quiet" th:text="${approved ? 'posted' : 'not posted'}">not posted</td>
+                <td class="num"><span class="delta add"><span class="delta-sign" aria-hidden="true">+</span><span
+                        th:text="${@fmt.money(l.debitCents > 0 ? l.debitCents : l.creditCents)}">$4.00</span></span></td>
+            </tr>
+
+            <tr class="diff-section"><th scope="colgroup" colspan="3" th:text="${live ? 'Balances' : 'What it changes'}">Balances</th></tr>
+            <th:block th:if="${live}">
+                <tr>
+                    <th scope="row">PayPal cash in the ledger</th>
+                    <th:block th:replace="~{investigate/fragments :: deltaCells(${cashNow}, ${plan.paypalCashEffectCents})}"></th:block>
+                </tr>
+                <tr th:if="${custNow != null}">
+                    <th scope="row" th:text="${who + '''s balance'}">Maya's balance</th>
+                    <th:block th:replace="~{investigate/fragments :: deltaCells(${custNow}, ${plan.customerBalanceEffectCents})}"></th:block>
+                </tr>
+                <tr th:if="${gapNow != null}">
+                    <th scope="row">Unexplained against PayPal</th>
+                    <th:block th:replace="~{investigate/fragments :: deltaCells(${gapNow}, ${plan.paypalCashEffectCents})}"></th:block>
+                </tr>
+            </th:block>
+            <th:block th:unless="${live}">
+                <tr>
+                    <th scope="row">PayPal cash in the ledger</th><td></td>
+                    <td class="num" th:text="${plan.paypalCashEffectCents == 0} ? 'No change' : ${@fmt.signed(plan.paypalCashEffectCents)}">No change</td>
+                </tr>
+                <tr>
+                    <th scope="row">Customer balance</th><td></td>
+                    <td class="num" th:text="${plan.customerBalanceEffectCents == 0} ? 'No change' : ${@fmt.signed(plan.customerBalanceEffectCents)}">No change</td>
+                </tr>
+                <tr>
+                    <th scope="row">Shop profit</th><td></td>
+                    <td class="num" th:text="${plan.shopResultEffectCents == 0} ? 'No change' : ${@fmt.signed(plan.shopResultEffectCents)}">No change</td>
+                </tr>
+            </th:block>
+            </tbody>
+        </table>
+        <p class="diff-summary"
+           th:with="ce=${plan.customerBalanceEffectCents}, se=${plan.shopResultEffectCents}">
+            <span th:text="${ce == 0 ? who + '''s balance stays.' : who + '''s balance goes ' + (ce > 0 ? 'up' : 'down') + ' by ' + @fmt.money(ce > 0 ? ce : -ce) + '.'}">Maya's balance stays.</span>
+            <span th:text="${se == 0 ? 'Shop profit does not change.' : 'Shop profit goes ' + (se > 0 ? 'up' : 'down') + ' by ' + @fmt.money(se > 0 ? se : -se) + '.'}">Shop profit goes down by $4.00.</span>
+            <span th:if="${plan.alsoResolves != null}"
+                  th:text="${'Also resolves the ' + @fmt.label(plan.alsoResolves.kind).toLowerCase() + ' ' + plan.alsoResolves.paypalRef + '.'}"></span>
+        </p>
+    </th:block>
+</div>
+
+<!--/* A balance now and after a change: struck and marked when the change is not zero. */-->
+<th:block th:fragment="deltaCells(now, eff)">
+    <td class="num" th:if="${eff != 0}"><span class="delta del"><span class="delta-sign" aria-hidden="true">&minus;</span><span class="visually-hidden">was </span><s th:text="${@fmt.money(now)}">$95.93</s></span></td>
+    <td class="num" th:if="${eff != 0}"><span class="delta add"><span class="delta-sign" aria-hidden="true">+</span><span class="visually-hidden">becomes </span><strong th:text="${@fmt.money(now + eff)}">$91.93</strong></span></td>
+    <td class="num diff-quiet" th:if="${eff == 0}" th:text="${@fmt.money(now)}">$58.00</td>
+    <td class="num diff-quiet" th:if="${eff == 0}" th:text="${@fmt.money(now)}">$58.00</td>
+</th:block>
+
+<!--/* The code's checks, with how many passed. */-->
+<div class="diff-card" th:fragment="checksCard(checks, title)"
+     th:with="total=${checks == null ? 0 : #lists.size(checks)}, passed=${checks == null ? 0 : #lists.size(checks.?[ok])}">
+    <h3><span th:text="${title}">Checked by code</span><span class="diff-count" th:if="${total > 0}"
+            th:text="${passed + ' of ' + total + ' passed'}" th:classappend="${passed == total} ? 'ok' : 'bad'">4 of 4 passed</span></h3>
+    <p class="muted small" th:if="${total == 0}">No checks ran.</p>
+    <th:block th:if="${total > 0}"><ul th:replace="~{investigate/fragments :: checklist(${checks})}"></ul></th:block>
+</div>
+
+<!--/* The validator's checklist. */-->
+<ul class="checklist" th:fragment="checklist(checks)">
+    <li th:each="c : ${checks}" th:classappend="${c.ok} ? 'is-ok' : 'is-bad'">
+        <span class="check-icon" aria-hidden="true">
+            <svg th:if="${c.ok}" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>
+            <svg th:unless="${c.ok}" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg>
+        </span>
+        <span class="check-text">
+            <span class="check-name"><span th:text="${c.name}">Entry balances</span>
+                <span class="badge bad" th:unless="${c.ok}">Fail</span><span class="visually-hidden" th:if="${c.ok}">Pass</span></span>
+            <span class="detail" th:text="${c.detail}"></span>
+        </span>
+    </li>
+</ul>
+
+<!--/* ============================================================ The investigator's judgement */-->
+<section class="card judgement" th:fragment="judgement(page)" aria-labelledby="judgement-title"
+         th:with="p=${page.proposal}, out=${page.output}">
+    <div class="panel-head">
+        <h2 id="judgement-title">The investigator's reasoning</h2>
+    </div>
+    <p class="muted" th:if="${out == null}">No investigator output.</p>
+    <th:block th:if="${out != null}">
+        <div class="judgement-model">
+            <span class="model-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M18.5 15.5l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z"/></svg></span>
+            <span class="judgement-model-text">
+                <span class="judgement-model-name" th:text="${p.aiProvider != null ? p.modelLabel() : out.model}">OpenAI gpt-5.4-mini</span>
+                <span class="muted small">Provider and model that made this proposal</span>
+            </span>
+        </div>
+        <dl class="kv judgement-facts">
+            <dt>Treatment</dt>
+            <dd><span class="badge badge-lg" th:classappend="${@fmt.tone(out.treatment)}" th:text="${out.treatment.label()}">Goodwill</span></dd>
+            <dt>Confidence</dt><dd th:text="${@fmt.label(out.confidence)}">High</dd>
+        </dl>
+        <p class="judgement-reasoning" th:text="${out.reasoning}">Reasoning for the approver.</p>
+        <div class="well judgement-rejected">
+            <span class="judgement-label">Turned down</span>
+            <p><strong th:text="${out.rejectedAlternative != null ? out.rejectedAlternative.label() : 'None'}">Balance returned</strong><th:block
+                    th:if="${out.rejectedBecause != null and !#strings.isEmpty(out.rejectedBecause)}">: <span th:text="${out.rejectedBecause}"></span></th:block></p>
+        </div>
+        <div class="judgement-note" th:if="${out.customerNote != null and !#strings.isEmpty(out.customerNote)}">
+            <span class="judgement-label">Note to customer</span>
+            <blockquote class="customer-note" th:text="${out.customerNote}">We have looked into your refund.</blockquote>
+        </div>
+    </th:block>
+</section>
+
+<!--/* ============================================================ Evidence: sources with the quotes marked */-->
+<section class="card evidence" th:fragment="evidence(page)" aria-labelledby="evidence-title"
+         th:with="b=${page.brk}, quotesFound=${#lists.size(page.quotes.?[found])}, quoteTotal=${#lists.size(page.quotes)}">
+    <div class="panel-head">
+        <h2 id="evidence-title">Evidence</h2>
+        <span class="muted">Marked text is what the investigator quoted</span>
+    </div>
+
+    <div class="evidence-grid">
+        <div class="evidence-sources">
+            <article class="source">
+                <header class="source-head">
+                    <span class="source-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10.5h18"/></svg></span>
+                    <span class="source-title">PayPal record</span>
+                    <code th:text="${b.paypalRef}">REF</code>
+                </header>
+                <dl class="kv source-facts">
+                    <dt>Break</dt><dd th:text="${'#' + b.id + ' (' + @fmt.label(b.status) + ')'}">#1</dd>
+                    <dt>Kind</dt><dd th:text="${@fmt.label(b.kind)}">Unbooked refund</dd>
+                    <dt>Amount</dt><dd class="strong" th:text="${@fmt.money(b.amountCents)}">$0.00</dd>
+                    <dt>Customer</dt><dd th:text="${page.customerName ?: 'Unknown'}">Demo Customer A</dd>
+                    <dt>Found</dt><dd th:text="${@fmt.time(b.createdAt)}"></dd>
+                    <th:block th:if="${page.paypal != null and page.paypal.captureId != null and page.paypal.captureId != page.paypal.id}">
+                        <dt>Refunded capture</dt><dd><code th:text="${page.paypal.captureId}"></code></dd>
+                    </th:block>
+                </dl>
+                <th:block th:if="${page.paypal != null}">
+                    <span class="source-sub">Note to payer</span>
+                    <p class="source-text" th:if="${!#lists.isEmpty(page.noteSegments)}"><th:block th:each="s : ${page.noteSegments}"><mark th:if="${s.marked}" th:text="${s.text}"></mark><th:block th:unless="${s.marked}" th:text="${s.text}"></th:block></th:block></p>
+                    <p class="source-text muted" th:if="${#lists.isEmpty(page.noteSegments)}">No note</p>
+                </th:block>
+            </article>
+
+            <article class="source">
+                <header class="source-head">
+                    <span class="source-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H10l-5 4v-4.5A3 3 0 0 1 4 14z"/></svg></span>
+                    <span class="source-title">Customer messages</span>
+                    <span class="muted small" th:text="${@fmt.count(#lists.size(page.messages), 'message', 'messages')}">1 message</span>
+                </header>
+                <p class="source-text muted" th:if="${#lists.isEmpty(page.messages)}">The customer sent no messages.</p>
+                <ul class="source-messages" th:unless="${#lists.isEmpty(page.messages)}">
+                    <li th:each="m : ${page.messages}">
+                        <span class="muted small" th:text="${@fmt.timeText(m.sentAt)}"></span>
+                        <p><th:block th:each="s : ${m.body}"><mark th:if="${s.marked}" th:text="${s.text}"></mark><th:block th:unless="${s.marked}" th:text="${s.text}"></th:block></th:block></p>
+                    </li>
+                </ul>
+            </article>
+        </div>
+
+        <div class="evidence-quotes">
+            <h3 class="evidence-subtitle"><span>Quotes the investigator relied on</span>
+                <span class="diff-count" th:if="${quoteTotal > 0}" th:classappend="${quotesFound == quoteTotal} ? 'ok' : 'bad'"
+                      th:text="${quotesFound + ' of ' + quoteTotal + ' found word for word'}">1 of 1 found word for word</span></h3>
+            <p class="muted" th:if="${#lists.isEmpty(page.quotes)}">None.</p>
+            <ul class="quote-list" th:unless="${#lists.isEmpty(page.quotes)}">
+                <li th:each="q : ${page.quotes}" th:classappend="${q.found} ? 'is-ok' : 'is-bad'"
+                    th:with="inNote=${page.paypal != null and page.paypal.noteToPayer != null and #strings.contains(page.paypal.noteToPayer, q.text)}">
+                    <blockquote class="quote-text"><mark th:text="${q.text}">quote</mark></blockquote>
+                    <span class="quote-source">
+                        <span class="check-icon" aria-hidden="true">
+                            <svg th:if="${q.found}" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>
+                            <svg th:unless="${q.found}" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg>
+                        </span>
+                        <span th:if="${q.found}"><span class="visually-hidden">Found in evidence: </span><th:block th:text="${inNote ? 'Found in PayPal''s note to the payer' : 'Found in the evidence'}">Found in PayPal's note to the payer</th:block></span>
+                        <span th:unless="${q.found}">Not in evidence</span>
+                    </span>
+                </li>
+            </ul>
+            <p class="evidence-rule">Code checks every quote against the records word for word. A quote it cannot find stops the proposal.</p>
+        </div>
+    </div>
+
+    <details class="bundle-details">
+        <summary>Evidence bundle as the investigator saw it</summary>
+        <pre class="bundle"><th:block th:each="s : ${page.bundleSegments}"><mark th:if="${s.marked}" th:text="${s.text}"></mark><th:block th:unless="${s.marked}" th:text="${s.text}"></th:block></th:block></pre>
+    </details>
+</section>
+
+<!--/* ============================================================ A drafted entry as a plain table */-->
 <div th:fragment="draft(plan)">
     <th:block th:if="${plan == null}"><p class="muted">No draft.</p></th:block>
     <th:block th:if="${plan != null}">
         <p class="muted" th:if="${!#lists.isEmpty(plan.problems)}" th:text="${#strings.listJoin(plan.problems, ' ')}">Why no entry</p>
-        <table class="table compact" th:if="${!#lists.isEmpty(plan.lines)}">
-            <thead><tr><th>Account</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
-            <tbody>
-            <tr th:each="l : ${plan.lines}">
-                <td><code th:text="${l.account}">PAYPAL_CASH</code></td>
-                <td class="num" th:text="${l.debitCents > 0} ? ${@fmt.money(l.debitCents)} : ''"></td>
-                <td class="num" th:text="${l.creditCents > 0} ? ${@fmt.money(l.creditCents)} : ''"></td>
-            </tr>
-            </tbody>
-        </table>
-        <dl class="effects" th:if="${!#lists.isEmpty(plan.lines)}">
+        <div class="table-well" th:if="${!#lists.isEmpty(plan.lines)}">
+            <table class="table compact">
+                <thead><tr><th>Account</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
+                <tbody>
+                <tr th:each="l : ${plan.lines}">
+                    <td><code th:text="${l.account}">PAYPAL_CASH</code></td>
+                    <td class="num" th:text="${l.debitCents > 0} ? ${@fmt.money(l.debitCents)} : ''"></td>
+                    <td class="num" th:text="${l.creditCents > 0} ? ${@fmt.money(l.creditCents)} : ''"></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <dl class="kv effects" th:if="${!#lists.isEmpty(plan.lines)}">
             <dt>Customer balance</dt>
-            <dd class="num" th:text="${plan.customerBalanceEffectCents == 0} ? 'No change' : ${@fmt.signed(plan.customerBalanceEffectCents)}">No change</dd>
+            <dd th:text="${plan.customerBalanceEffectCents == 0} ? 'No change' : ${@fmt.signed(plan.customerBalanceEffectCents)}">No change</dd>
             <dt>Shop profit</dt>
-            <dd class="num" th:text="${plan.shopResultEffectCents == 0} ? 'No change' : ${@fmt.signed(plan.shopResultEffectCents)}">No change</dd>
+            <dd th:text="${plan.shopResultEffectCents == 0} ? 'No change' : ${@fmt.signed(plan.shopResultEffectCents)}">No change</dd>
             <dt>PayPal cash in the ledger</dt>
-            <dd class="num" th:text="${plan.paypalCashEffectCents == 0} ? 'No change' : ${@fmt.signed(plan.paypalCashEffectCents)}">No change</dd>
+            <dd th:text="${plan.paypalCashEffectCents == 0} ? 'No change' : ${@fmt.signed(plan.paypalCashEffectCents)}">No change</dd>
         </dl>
         <p class="muted small" th:if="${plan.alsoResolves != null}"
            th:text="${'Also resolves the ' + @fmt.label(plan.alsoResolves.kind).toLowerCase() + ' ' + plan.alsoResolves.paypalRef + '.'}"></p>
     </th:block>
 </div>
 
-<!--/* The validator's checklist. */-->
-<ul class="checklist" th:fragment="checklist(checks)">
-    <li th:each="c : ${checks}">
-        <span><span class="badge" th:classappend="${c.ok} ? 'ok' : 'bad'" th:text="${c.ok} ? 'Pass' : 'Fail'">Pass</span></span>
-        <span><span th:text="${c.name}">Entry balances</span><span class="detail" th:text="${c.detail}"></span></span>
-    </li>
-</ul>
+<!--/* ============================================================ List items */-->
+<li class="item break-item" th:fragment="breakItem(b, name, canInvestigate, aiConfigured)"
+    th:with="n=${name != null and !#strings.isEmpty(name) ? name : null}">
+    <span class="avatar" aria-hidden="true"
+          th:classappend="${b.customerId == null ? 'customer' : 'tone-' + ((b.customerId - 1) % 3)}"
+          th:text="${n == null ? '?' : (n.contains(' ') ? #strings.substring(n, 0, 1) + #strings.substring(n, n.lastIndexOf(' ') + 1, n.lastIndexOf(' ') + 2) : #strings.substring(n, 0, 1))}">ML</span>
+    <span class="item-main">
+        <span class="item-title"><span th:text="${n ?: 'Unknown customer'}">Demo Customer A</span>
+            <span class="item-kind" th:text="${@fmt.label(b.kind)}">Unbooked refund</span></span>
+        <span class="item-meta"><span th:text="${'Break #' + b.id}">Break #1</span><span>PayPal ref <code th:text="${b.paypalRef}">REF</code></span></span>
+    </span>
+    <span class="item-amount money" th:text="${@fmt.money(b.amountCents)}">$0.00</span>
+    <span class="item-chips"><span class="badge" th:classappend="${@fmt.tone(b.status)}" th:text="${@fmt.label(b.status)}">Open</span></span>
+    <span class="item-action">
+        <form th:if="${canInvestigate and aiConfigured and b.status.name() == 'OPEN'}"
+              th:action="@{/breaks/{id}/investigate(id=${b.id})}" method="post" class="inline"
+              th:with="amountText=${@fmt.money(b.amountCents)}, kindText=${#strings.toLowerCase(@fmt.label(b.kind))}"
+              data-investigate th:data-customer="${n ?: ''}" th:data-amount="${amountText}"
+              th:data-kind="${kindText}" th:data-ref="${b.paypalRef}">
+            <button type="submit" class="primary">Investigate</button>
+        </form>
+    </span>
+</li>
+
+<li class="item proposal-item" th:fragment="proposalItem(p)"
+    th:with="needsHuman=${p.treatment != null and p.treatment.name() == 'NEEDS_HUMAN'}">
+    <span class="item-id" aria-hidden="true" th:text="${'#' + p.id}">#1</span>
+    <span class="item-main">
+        <span class="item-title"><a class="item-link" th:href="@{/proposals/{id}(id=${p.id})}">Proposal <span th:text="${'#' + p.id}">#1</span></a>
+            <span class="item-kind" th:text="${p.customerName}">Demo Customer A</span></span>
+        <span class="item-meta">
+            <span><span th:text="${'Break #' + p.breakId}">Break #1</span>, <span th:text="${#strings.toLowerCase(@fmt.label(p.breakKind))}">unbooked refund</span></span>
+            <span th:if="${!#strings.isEmpty(p.modelLabel())}" th:text="${p.modelLabel()}">OpenAI gpt-5.4-mini</span>
+            <span th:if="${p.createdBy != null}">Prepared by <span th:text="${@fmt.actor(p.createdBy)}">maker</span></span>
+            <span th:if="${p.decidedBy != null}">Decided by <span th:text="${@fmt.actor(p.decidedBy)}"></span></span>
+            <span th:text="${@fmt.time(p.createdAt)}"></span>
+        </span>
+    </span>
+    <span class="item-amount money" th:text="${@fmt.money(p.amountCents)}">$0.00</span>
+    <span class="item-chips">
+        <span class="badge outline-soft" th:if="${p.treatment != null and !needsHuman}" th:text="${p.treatment.label()}">Goodwill</span>
+        <span class="badge" th:classappend="${needsHuman} ? 'watch' : ${@fmt.tone(p.status)}"
+              th:text="${needsHuman} ? 'Needs a human' : ${@fmt.label(p.status)}">Pending approval</span>
+    </span>
+</li>
+
+<!--/* ============================================================ Waiting for the investigator */-->
+<div class="thinking-layer" id="investigator-thinking" th:fragment="thinking" hidden
+     role="status" aria-live="polite" aria-labelledby="thinking-title" data-stage="1">
+    <div class="thinking">
+        <div class="thinking-head">
+            <span class="avatar customer" aria-hidden="true" data-thinking="initials">ML</span>
+            <div class="thinking-heading">
+                <h2 id="thinking-title"><span data-thinking="customer">The customer</span>, <span data-thinking="kind">unbooked refund</span> at PayPal</h2>
+                <span class="thinking-sub"><span data-thinking="amount">$0.00</span>, not in the books yet</span>
+            </div>
+            <span class="thinking-pill"><span class="thinking-dots" aria-hidden="true"><span></span><span></span><span></span></span>Investigator is reading</span>
+        </div>
+
+        <div class="thinking-body">
+            <div class="thinking-read">
+                <div class="thinking-row-head">
+                    <h3>Evidence it is reading</h3>
+                    <span class="muted small"><span data-thinking="count">0</span> of 3 read</span>
+                </div>
+                <div class="thinking-step" data-step="1">
+                    <span class="thinking-icon" aria-hidden="true"><svg class="tick" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg><svg class="spin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 9 9"/></svg></span>
+                    <span class="thinking-text"><span class="thinking-title">PayPal record</span>
+                        <span class="thinking-detail"><span data-thinking="amount">$0.00</span>, ref <span data-thinking="ref">REF</span></span></span>
+                    <span class="thinking-state"></span>
+                </div>
+                <div class="thinking-step" data-step="2">
+                    <span class="thinking-icon" aria-hidden="true"><svg class="tick" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg><svg class="spin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 9 9"/></svg></span>
+                    <span class="thinking-text"><span class="thinking-title">PayPal's note to the payer</span>
+                        <span class="thinking-detail">Looking for words that say who pays</span></span>
+                    <span class="thinking-state"></span>
+                </div>
+                <div class="thinking-step" data-step="3">
+                    <span class="thinking-icon" aria-hidden="true"><svg class="tick" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg><svg class="spin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 9 9"/></svg></span>
+                    <span class="thinking-text"><span class="thinking-title"><span data-thinking="customer">The customer</span>'s history</span>
+                        <span class="thinking-detail">Balance and the messages they sent</span></span>
+                    <span class="thinking-state"></span>
+                </div>
+                <p class="thinking-foot">It reads only the records for this break. Nothing is booked until a checker approves.</p>
+            </div>
+
+            <div class="thinking-next">
+                <h3>After it reads</h3>
+                <ol class="thinking-plan">
+                    <li><span class="thinking-num" aria-hidden="true">1</span>
+                        <span class="thinking-text"><span class="thinking-title">Suggests how to book it</span>
+                            <span class="thinking-skeleton" aria-hidden="true"><span></span><span></span></span></span></li>
+                    <li><span class="thinking-num" aria-hidden="true">2</span>
+                        <span class="thinking-text"><span class="thinking-title">Code checks the entry</span>
+                            <span class="thinking-detail">Every quote has to appear word for word</span></span></li>
+                    <li><span class="thinking-num" aria-hidden="true">3</span>
+                        <span class="thinking-text"><span class="thinking-title">A checker approves it</span></span></li>
+                </ol>
+                <div class="thinking-progress">
+                    <div class="thinking-bar" aria-hidden="true"><span></span></div>
+                    <p class="thinking-foot">Usually 5 to 10 seconds. The proposal opens when it is ready.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script th:inline="none">
+    (function () {
+        var layer = document.getElementById('investigator-thinking');
+        if (!layer || layer.dataset.wired) { return; }
+        layer.dataset.wired = '1';
+        var timer = null;
+        function put(key, value) {
+            layer.querySelectorAll('[data-thinking="' + key + '"]').forEach(function (el) { el.textContent = value; });
+        }
+        function stage(n) {
+            layer.dataset.stage = String(n);
+            put('count', String(Math.min(n - 1, 3)));
+            layer.querySelectorAll('.thinking-step').forEach(function (step) {
+                var s = Number(step.dataset.step);
+                var state = step.querySelector('.thinking-state');
+                step.classList.toggle('is-read', s < n);
+                step.classList.toggle('is-reading', s === n);
+                if (state) { state.textContent = s < n ? 'Read' : (s === n ? 'Reading now' : 'Next'); }
+            });
+        }
+        document.addEventListener('submit', function (e) {
+            var form = e.target;
+            if (e.defaultPrevented || !form.matches || !form.matches('form[data-investigate]')) { return; }
+            var name = form.dataset.customer || '';
+            var parts = name.trim().split(/\s+/).filter(Boolean);
+            put('customer', name || 'The customer');
+            put('initials', parts.length ? (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase() : '?');
+            put('amount', form.dataset.amount || '');
+            put('kind', form.dataset.kind || 'payment');
+            put('ref', form.dataset.ref || '');
+            document.querySelectorAll('form[data-investigate] button').forEach(function (b) { b.setAttribute('aria-disabled', 'true'); });
+            form.setAttribute('aria-busy', 'true');
+            stage(1);
+            layer.hidden = false;
+            var n = 1;
+            clearInterval(timer);
+            timer = setInterval(function () { if (n < 4) { n += 1; stage(n); } }, 1800);
+        });
+        window.addEventListener('pageshow', function (e) {
+            if (e.persisted) {
+                layer.hidden = true;
+                clearInterval(timer);
+                document.querySelectorAll('form[data-investigate]').forEach(function (f) {
+                    f.removeAttribute('aria-busy');
+                    f.querySelectorAll('button').forEach(function (b) { b.removeAttribute('aria-disabled'); });
+                });
+            }
+        });
+        stage(1);
+    })();
+    </script>
+</div>
 
 </body>
 </html>

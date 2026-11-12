@@ -1,0 +1,360 @@
+/* Top-ups, demo faults and webhook events. Loads after app.css and uses its tokens.
+   The "Outcome unknown" panel follows the StateInDoubt board: a violet "unknown" signal,
+   a four-step trail, a warning, and one obvious Resolve action. */
+
+:root {
+  --unknown: #c3b5ff;
+  --unknown-text: #ece8ff;
+  --unknown-tint: rgba(195, 181, 255, 0.12);
+  --unknown-edge: rgba(195, 181, 255, 0.5);
+}
+
+/* ------------------------------------------------------------------ Outcome unknown panel */
+
+.unknown {
+  border-color: var(--unknown-edge);
+  box-shadow: var(--shadow-panel-strong), 0 0 0 4px rgba(195, 181, 255, 0.08);
+}
+.unknown-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3) var(--s-4);
+  flex-wrap: wrap;
+  padding-bottom: var(--s-5);
+  margin-bottom: var(--s-5);
+  border-bottom: 1px solid var(--divider);
+}
+.unknown-who { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.unknown-who h2 { margin: 0; font-size: var(--fs-xl); letter-spacing: -0.02em; }
+.unknown-sub { color: var(--text-muted); font-size: var(--fs-base); }
+.unknown-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 10px;
+  border-radius: var(--r-xs);
+  background: var(--unknown-tint);
+  border: 1px solid var(--unknown-edge);
+  color: var(--unknown-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-strong);
+  white-space: nowrap;
+}
+.unknown-chip svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; }
+.unknown-chip svg .fill { fill: currentColor; stroke: none; }
+
+.unknown-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: var(--s-6) var(--s-8);
+  align-items: stretch;
+}
+
+/* The trail: done, lost, next, later */
+.unknown-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.unknown-steps > li { position: relative; display: flex; gap: var(--s-3); padding-bottom: var(--s-4); }
+.unknown-steps > li:last-child { padding-bottom: 0; }
+.unknown-steps > li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 30px;
+  bottom: 4px;
+  width: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.22);
+}
+.step-mark {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.step-mark svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.step-text { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding-top: 2px; }
+.step-title { font-size: var(--fs-base); line-height: 22px; color: var(--text-soft); }
+.step-detail { font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.45; overflow-wrap: anywhere; }
+.step-detail code { font-size: 0.9em; }
+
+.step-done .step-mark { background: var(--ok); color: var(--ok-ink); }
+.step-lost .step-mark { border: 2px solid var(--unknown); color: var(--unknown); }
+.step-lost .step-mark svg { width: 18px; height: 18px; stroke: none; }
+.step-lost .step-mark svg .fill { fill: var(--unknown); }
+.step-lost .step-title { color: var(--text); }
+.step-next .step-mark { background: #ffffff; color: var(--ink); box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.12); }
+.step-next .step-title { color: var(--text); font-weight: var(--fw-strong); }
+.step-later .step-mark { border: 2px dashed rgba(255, 255, 255, 0.45); }
+.step-later .step-title { color: var(--text-muted); }
+
+.unknown-side { display: flex; flex-direction: column; gap: var(--s-4); min-width: 0; }
+.unknown-figure { display: flex; flex-direction: column; gap: var(--s-2); }
+.unknown-figure .money { color: var(--text); }
+.unknown-figure-note { font-size: var(--fs-sm); color: var(--text-muted); }
+.unknown-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--unknown-tint);
+  border: 1px solid rgba(195, 181, 255, 0.32);
+  color: var(--unknown-text);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+.unknown-warn svg {
+  flex: 0 0 18px; width: 18px; height: 18px; margin-top: 1px;
+  fill: none; stroke: var(--unknown); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;
+}
+.unknown-act {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3) var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--divider);
+}
+.unknown-note { flex: 1 1 200px; min-width: 0; font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.45; }
+.unknown-act form { flex: 0 0 auto; }
+.unknown-act button { min-height: 48px; padding: 0 var(--s-6); }
+
+/* ------------------------------------------------------------------ Stat tile in attention */
+
+.stat.stat-watch { border-color: var(--attention-edge); box-shadow: var(--shadow-panel), 0 0 26px rgba(255, 210, 122, 0.18); }
+
+/* ------------------------------------------------------------------ Recent top-ups */
+
+.topup-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-2); }
+.topup {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 210px;
+  grid-template-areas:
+    "who state money"
+    "ids ids ids";
+  align-items: center;
+  gap: var(--s-3) var(--s-5);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--well);
+  border: 1px solid var(--well-line);
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.topup:hover { border-color: rgba(255, 255, 255, 0.22); }
+.topup.is-open { border-color: var(--unknown-edge); background: rgba(40, 30, 92, 0.5); }
+.topup-who { grid-area: who; display: flex; align-items: center; gap: var(--s-3); min-width: 0; }
+.topup-who .person-name { overflow-wrap: anywhere; }
+.topup-state { grid-area: state; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.topup-reason { font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.35; overflow-wrap: anywhere; }
+.topup-money { grid-area: money; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; text-align: right; }
+.topup-split { font-size: var(--fs-sm); color: var(--text-muted); white-space: nowrap; }
+.topup-split b { color: var(--text-soft); font-weight: var(--fw-strong); }
+
+/* PayPal ids, as small labelled tags */
+.topup-ids {
+  grid-area: ids;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px var(--s-4);
+  margin: 0;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--divider-soft);
+  font-size: var(--fs-sm);
+}
+.topup-ids > div { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.topup-ids dt { color: var(--text-muted); font-weight: 700; }
+.topup-ids dd { margin: 0; min-width: 0; }
+.topup-ids code { font-size: 12px; }
+
+.topup-footnote {
+  margin: var(--s-4) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  max-width: 90ch;
+}
+
+/* ------------------------------------------------------------------ Demo faults */
+
+.demo-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); }
+.demo-title h1 { margin: 0; }
+.badge.demo-tag {
+  background: transparent;
+  color: var(--attention);
+  border: 1.5px dashed var(--attention-edge);
+  box-shadow: none;
+}
+.mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 40px;
+  padding: 0 var(--s-2) 0 var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.mode-pill code { color: var(--text); font-weight: 700; }
+
+/* Hazard stripe across the top of every demo panel: this page breaks things on purpose */
+.demo-panel { overflow: hidden; padding-top: calc(var(--s-6) + 6px); }
+.demo-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: repeating-linear-gradient(135deg, rgba(255, 210, 122, 0.55) 0 10px, rgba(255, 210, 122, 0) 10px 20px);
+}
+.demo-lead { color: var(--text-muted); margin-top: calc(-1 * var(--s-2)); }
+
+.fault-grid {
+  list-style: none;
+  margin: var(--s-4) 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--s-4);
+}
+.fault {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+  padding: var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--well);
+  border: 1px solid var(--well-line);
+}
+.fault.is-armed { border-color: var(--attention-edge); background: rgba(70, 52, 30, 0.38); box-shadow: 0 0 24px rgba(255, 210, 122, 0.16); }
+.fault-top { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); }
+.fault-label { margin: 0; font-size: var(--fs-md); line-height: 1.3; }
+.fault-hint { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.45; }
+.fault-foot {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--divider-soft);
+}
+.fault-foot code { font-size: 11px; }
+.fault-foot button { min-width: 104px; }
+
+/* A switch drawn as a soft rectangle; it shows state only, the button changes it */
+.fault-switch {
+  position: relative;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 26px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+.fault-switch > span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: var(--text-muted);
+  transition: transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.is-armed .fault-switch { background: var(--attention); border-color: transparent; box-shadow: var(--glow-attention); }
+.is-armed .fault-switch > span { transform: translateX(18px); background: var(--ink); }
+
+/* Outside refund: why on the left, the form on the right */
+.refund-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: var(--s-6) var(--s-8);
+  align-items: start;
+}
+.refund-copy h2 { margin-bottom: var(--s-3); }
+.refund-copy > p { max-width: 56ch; }
+.refund-steps { list-style: none; margin: var(--s-5) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-3); }
+.refund-steps li { display: flex; align-items: center; gap: var(--s-3); color: var(--text-soft); }
+.refund-num {
+  flex: 0 0 28px;
+  height: 28px;
+  border-radius: var(--r-xs);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-black);
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--text);
+}
+.refund-steps li:last-child .refund-num { background: var(--attention); color: var(--attention-ink); }
+.refund-form { padding: var(--s-5); }
+.refund-form form.stack > button { margin-top: var(--s-1); }
+.refund-empty { margin: 0; color: var(--text-soft); }
+
+/* ------------------------------------------------------------------ Webhook events */
+
+.event-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-2); }
+.event {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--well);
+  border: 1px solid var(--well-line);
+}
+.event > .status-icon { align-self: flex-start; margin-top: 2px; }
+.event-main { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.event-title { font-weight: var(--fw-strong); color: var(--text); }
+.event-type { font-size: var(--fs-xs); color: var(--text-muted); }
+.event-refs { padding-top: var(--s-1); border-top: none; }
+.event-when { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; text-align: right; }
+.event-time { font-size: var(--fs-sm); color: var(--text-muted); white-space: nowrap; }
+
+/* ------------------------------------------------------------------ Narrow screens */
+
+@media (max-width: 1100px) {
+  .unknown-body { grid-template-columns: 1fr; }
+  .unknown-figure { display: none; }
+  .refund-panel { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  .topup {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "who money"
+      "state state"
+      "ids ids";
+    padding: var(--s-4);
+  }
+  .topup-state { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px var(--s-2); }
+  .event { flex-wrap: wrap; padding: var(--s-4); }
+  .event-when { flex: 1 0 100%; flex-direction: row; justify-content: space-between; align-items: center; padding-left: 44px; }
+}
+
+@media (max-width: 640px) {
+  .unknown-who h2 { font-size: var(--fs-lg); }
+  .unknown-chip { order: 3; }
+  .unknown-act form { flex: 1 1 100%; }
+  .unknown-act button { width: 100%; }
+  .demo-panel { padding-top: calc(var(--s-4) + 6px); }
+  .fault-grid { grid-template-columns: 1fr; }
+  .refund-form { padding: var(--s-4); }
+  .topup-split { white-space: normal; }
+}
+
+@media (max-width: 420px) {
+  .topup { grid-template-columns: minmax(0, 1fr); grid-template-areas: "who" "money" "state" "ids"; }
+  .topup-money { flex-direction: row; flex-wrap: wrap; align-items: baseline; justify-content: space-between; text-align: left; }
+}

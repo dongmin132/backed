@@ -1,51 +1,105 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Counter', ~{::main})}">
 <body>
-<main class="container">
-    <h1>Counter</h1>
+<main class="container counter-page">
+    <link rel="stylesheet" th:href="@{/css/money.css}">
+
+    <header class="page-header">
+        <div>
+            <h1>Counter</h1>
+            <p class="page-context">Charge a customer's prepaid balance at the till.</p>
+        </div>
+    </header>
     <div th:replace="~{layout/flash :: flash}"></div>
 
-    <section class="card">
-        <h2>Charge a balance</h2>
-        <form th:action="@{/pos}" method="post" class="row">
+    <section class="card panel-strong charge-panel" aria-labelledby="charge-title">
+        <div class="panel-head">
+            <h2 id="charge-title">Charge a balance</h2>
+            <span class="muted">Pick who is paying, then the amount</span>
+        </div>
+        <form th:action="@{/pos}" method="post" class="charge-form">
             <input type="hidden" name="requestId" th:value="${requestId}">
-            <label class="grow">Customer
-                <select name="customerId" required>
-                    <option th:each="c : ${customers}" th:value="${c.id}"
-                            th:selected="${selectedCustomerId != null and selectedCustomerId == c.id}"
-                            th:text="${c.name + ' (' + @fmt.money(c.balanceCents) + ')'}">Demo Customer A ($0.00)</option>
-                </select>
-            </label>
-            <label>Amount in USD
-                <input type="text" name="amount" inputmode="decimal" placeholder="4.50" required
-                       pattern="\$?\s*\d{1,9}(\.\d{1,2})?">
-            </label>
-            <label class="grow">Memo
-                <input type="text" name="memo" maxlength="200" placeholder="Coffee and a pastry">
-            </label>
-            <button type="submit" class="primary">Charge</button>
+
+            <fieldset class="customer-pick">
+                <legend>Customer</legend>
+                <div class="customer-tiles">
+                    <label class="customer-tile" th:each="c, it : ${customers}">
+                        <input type="radio" name="customerId" required th:value="${c.id}"
+                               th:checked="${selectedCustomerId != null ? selectedCustomerId == c.id : it.first}">
+                        <span class="tile-body">
+                            <span class="tile-top">
+                                <span class="avatar" aria-hidden="true"
+                                      th:classappend="${'tone-' + ((c.id - 1) % 3)}"
+                                      th:text="${(c.name.substring(0, 1) + c.name.substring(c.name.lastIndexOf(' ') + 1, c.name.lastIndexOf(' ') + 2)).toUpperCase()}">DA</span>
+                                <span class="tile-name" aria-hidden="true" th:text="${c.name}">Demo Customer A</span>
+                                <span class="tile-check" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>
+                                </span>
+                            </span>
+                            <span class="visually-hidden"
+                                  th:text="${c.name + ' (' + @fmt.money(c.balanceCents) + ')'}">Demo Customer A ($0.00)</span>
+                            <span class="tile-balance" aria-hidden="true">
+                                <span class="tile-balance-label">Balance</span>
+                                <span class="money tile-money" th:text="${@fmt.money(c.balanceCents)}">$0.00</span>
+                            </span>
+                            <span class="tile-empty" th:if="${c.balanceCents <= 0}">Nothing to spend yet</span>
+                        </span>
+                    </label>
+                </div>
+                <p class="muted" th:if="${#lists.isEmpty(customers)}">No customers yet.</p>
+            </fieldset>
+
+            <div class="charge-row">
+                <label class="amount-field">Amount in USD
+                    <span class="money-input money-input-lg"><span aria-hidden="true">$</span><input
+                            type="text" name="amount" inputmode="decimal" placeholder="4.50" required
+                            pattern="\$?\s*\d{1,9}(\.\d{1,2})?"></span>
+                </label>
+                <label class="memo-field">Memo
+                    <input type="text" name="memo" maxlength="200" placeholder="Coffee and a pastry">
+                </label>
+                <button type="submit" class="primary btn-lg charge-button">Charge</button>
+            </div>
         </form>
-        <p class="muted small">The balance is taken in one step that cannot go below zero. A sale the balance cannot cover is refused and nothing is written.</p>
+
+        <div class="guard-note">
+            <span class="status-icon ok" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
+            </span>
+            <p class="muted small">The balance is taken in one step that cannot go below zero. A sale the balance cannot cover is refused and nothing is written.</p>
+        </div>
     </section>
 
-    <section class="card">
-        <h2>Recent sales</h2>
-        <table class="table">
-            <thead>
-            <tr><th>When</th><th>Customer</th><th>Memo</th><th>By</th><th>Status</th><th class="num">Amount</th></tr>
-            </thead>
-            <tbody>
-            <tr th:each="s : ${spends}">
-                <td th:text="${@fmt.time(s.createdAt)}">2026-01-01 10:00:00 UTC</td>
-                <td th:text="${s.customerName}">Demo Customer A</td>
-                <td th:text="${s.memo}">Coffee</td>
-                <td class="muted" th:text="${@fmt.actor(s.createdBy)}">clerk</td>
-                <td><span class="badge" th:classappend="${@fmt.tone(s.state)}" th:text="${@fmt.label(s.state)}">Done</span></td>
-                <td class="num" th:text="${@fmt.money(s.amountCents)}">$0.00</td>
-            </tr>
-            <tr th:if="${#lists.isEmpty(spends)}"><td colspan="6" class="muted">No sales yet.</td></tr>
-            </tbody>
-        </table>
+    <section class="card sales-panel">
+        <div class="panel-head">
+            <h2>Recent sales</h2>
+            <span class="muted">Newest first</span>
+        </div>
+        <div class="table-well">
+            <table class="table">
+                <thead>
+                <tr><th>When</th><th>Customer</th><th>Memo</th><th>By</th><th>Status</th><th class="num">Amount</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="s : ${spends}">
+                    <td class="when-cell" th:text="${@fmt.time(s.createdAt)}">2026-01-01 10:00:00 UTC</td>
+                    <td>
+                        <span class="customer-cell">
+                            <span class="avatar avatar-sm" aria-hidden="true"
+                                  th:classappend="${'tone-' + ((s.customerId - 1) % 3)}"
+                                  th:text="${(s.customerName.substring(0, 1) + s.customerName.substring(s.customerName.lastIndexOf(' ') + 1, s.customerName.lastIndexOf(' ') + 2)).toUpperCase()}">DA</span>
+                            <span th:text="${s.customerName}">Demo Customer A</span>
+                        </span>
+                    </td>
+                    <td th:text="${s.memo}">Coffee</td>
+                    <td class="muted" th:text="${@fmt.actor(s.createdBy)}">clerk</td>
+                    <td><span class="badge" th:classappend="${@fmt.tone(s.state)}" th:text="${@fmt.label(s.state)}">Done</span></td>
+                    <td class="num money-cell" th:text="${@fmt.money(s.amountCents)}">$0.00</td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(spends)}"><td colspan="6" class="muted empty">No sales yet.</td></tr>
+                </tbody>
+            </table>
+        </div>
     </section>
 </main>
 </body>

@@ -1,135 +1,50 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Proposal', ~{::main})}">
 <body>
-<main class="container" th:with="p=${page.proposal}, b=${page.brk}, out=${page.output},
+<main class="container proposal-page" th:with="p=${page.proposal}, b=${page.brk}, out=${page.output},
                                   needsHuman=${page.proposal.treatment != null and page.proposal.treatment.name() == 'NEEDS_HUMAN'}">
     <link rel="stylesheet" th:href="@{/css/investigate.css}">
-    <div class="page-head">
-        <h1 th:text="${'Proposal #' + p.id}">Proposal #1</h1>
-        <span class="badge" th:classappend="${needsHuman} ? 'watch' : ${@fmt.tone(p.status)}"
-              th:text="${needsHuman} ? 'Needs a human' : ${@fmt.label(p.status)}">Pending approval</span>
-        <span class="badge" th:classappend="${@fmt.tone(p.treatment)}" th:if="${p.treatment != null and !needsHuman}" th:text="${p.treatment.label()}">Goodwill</span>
-        <a th:href="@{/proposals}" class="small">All proposals</a>
-    </div>
+    <header class="page-header">
+        <div class="proposal-title">
+            <div class="proposal-title-row">
+                <h1 th:text="${'Proposal #' + p.id}">Proposal #1</h1>
+                <span class="badge badge-lg" th:classappend="${needsHuman} ? 'watch' : ${@fmt.tone(p.status)}"
+                      th:text="${needsHuman} ? 'Needs a human' : ${@fmt.label(p.status)}">Pending approval</span>
+                <span class="badge badge-lg outline-soft" th:if="${p.treatment != null and !needsHuman}" th:text="${p.treatment.label()}">Goodwill</span>
+            </div>
+            <p class="page-context">
+                <span th:text="${page.customerName ?: 'Unknown customer'}">Maya Lindqvist</span>,
+                <span th:text="${#strings.toLowerCase(@fmt.label(b.kind))}">unbooked refund</span> of
+                <span th:text="${@fmt.money(b.amountCents)}">$4.00</span> at PayPal
+            </p>
+        </div>
+        <div class="page-actions">
+            <a th:href="@{/proposals}" class="btn quiet">All proposals</a>
+        </div>
+    </header>
     <div th:replace="~{layout/flash :: flash}"></div>
 
-
-    <div class="callout" th:if="${page.viewerIsMaker and page.pending()}">
-        You created this proposal, so you cannot approve it. A different user with the checker role must approve it.
-    </div>
     <div class="callout watch" th:if="${needsHuman}">
-        <strong>The investigator asked for a person to decide.</strong> It found no treatment the evidence supports
-        well enough, so no entry was drafted. Read its reasoning below, then decide by hand or investigate again.
+        <span class="callout-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 6v8M12 18.5v0.5"/></svg></span>
+        <div><strong>The investigator asked for a person to decide.</strong> It found no treatment the evidence supports
+        well enough, so no entry was drafted. Read its reasoning below, then decide by hand or investigate again.</div>
     </div>
     <div class="callout bad" th:if="${p.status.name() == 'REJECTED_BY_VALIDATOR' and !needsHuman}">
-        <strong>Rejected by the validator.</strong> This proposal cannot be approved:
-        <ul><li th:each="line : ${page.rejectionReasons()}" th:text="${line}"></li></ul>
-    </div>
-    <div class="callout" th:if="${p.status.name() == 'APPROVED'}">
-        Approved by <strong th:text="${p.approvedBy}">checker</strong>
-        <span th:text="${'on ' + @fmt.time(p.decidedAt)}"></span>.
-        Journal entry <strong th:text="${'#' + p.postedEntryId}">#1</strong>
-        <th:block th:if="${page.postedEntry != null}">dated <span th:text="${@fmt.date(page.postedEntry.businessDate)}"></span></th:block>,
-        created by <span th:text="${p.createdBy}">maker</span>.
-    </div>
-    <div class="callout" th:if="${p.status.name() == 'DISMISSED'}">
-        Dismissed by <strong th:text="${p.decidedBy}">checker</strong> <span th:text="${'on ' + @fmt.time(p.decidedAt)}"></span>.
+        <span class="callout-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></span>
+        <div><strong>Rejected by the validator.</strong> This proposal cannot be approved:
+        <ul><li th:each="line : ${page.rejectionReasons()}" th:text="${line}"></li></ul></div>
     </div>
 
-    <section class="card" th:if="${page.canDecide() or page.canDismiss()}">
-        <h2>Decision</h2>
-        <p class="muted" style="margin:0">Approving posts the chosen entry on the next business date, with
-            <strong th:text="${p.createdBy}">maker</strong> as maker and you as checker, then re-runs the close.</p>
-        <div class="actions">
-            <form th:if="${page.canDecide()}" th:action="@{/proposals/{id}/approve(id=${p.id})}" method="post" class="inline">
-                <button type="submit" class="primary">Approve and post</button>
-            </form>
-            <form th:if="${page.canDismiss()}" th:action="@{/proposals/{id}/dismiss(id=${p.id})}" method="post" class="inline">
-                <button type="submit">Dismiss</button>
-            </form>
-        </div>
-    </section>
+    <section th:replace="~{investigate/fragments :: relay(${page})}"></section>
 
-    <div class="split">
-        <section class="card">
-            <h2>Break</h2>
-            <dl class="facts">
-                <dt>Break</dt><dd th:text="${'#' + b.id + ' (' + @fmt.label(b.status) + ')'}">#1</dd>
-                <dt>Kind</dt><dd th:text="${@fmt.label(b.kind)}">Unbooked refund</dd>
-                <dt>PayPal ref</dt><dd><code th:text="${b.paypalRef}">REF</code></dd>
-                <dt>Amount</dt><dd class="strong" th:text="${@fmt.money(b.amountCents)}">$0.00</dd>
-                <dt>Customer</dt><dd th:text="${page.customerName ?: 'Unknown'}">Demo Customer A</dd>
-                <dt>Found</dt><dd th:text="${@fmt.time(b.createdAt)}"></dd>
-                <th:block th:if="${page.paypal != null}">
-                    <dt>Note to payer</dt>
-                    <dd>
-                        <span class="muted" th:if="${#lists.isEmpty(page.noteSegments)}">No note</span>
-                        <th:block th:each="s : ${page.noteSegments}"><mark th:if="${s.marked}" th:text="${s.text}"></mark><th:block th:unless="${s.marked}" th:text="${s.text}"></th:block></th:block>
-                    </dd>
-                    <dt th:if="${page.paypal.captureId != null and page.paypal.captureId != page.paypal.id}">Refunded capture</dt>
-                    <dd th:if="${page.paypal.captureId != null and page.paypal.captureId != page.paypal.id}"><code th:text="${page.paypal.captureId}"></code></dd>
-                </th:block>
-            </dl>
-        </section>
+    <th:block th:if="${page.chosen != null or page.alternative != null}">
+        <section th:replace="~{investigate/fragments :: diff(${page})}"></section>
+    </th:block>
 
-        <section class="card">
-            <h2>Investigator</h2>
-            <p class="muted" th:if="${out == null}">No investigator output.</p>
-            <dl class="facts" th:if="${out != null}">
-                <dt>Treatment</dt><dd class="strong" th:text="${out.treatment.label()}">Goodwill</dd>
-                <dt>Confidence</dt><dd th:text="${@fmt.label(out.confidence)}">High</dd>
-                <dt>Reasoning</dt><dd th:text="${out.reasoning}"></dd>
-                <dt>Rejected</dt>
-                <dd>
-                    <strong th:text="${out.rejectedAlternative != null ? out.rejectedAlternative.label() : 'None'}">Balance returned</strong>:
-                    <span th:text="${out.rejectedBecause}"></span>
-                </dd>
-                <dt>Note to customer</dt><dd><blockquote class="customer-note" th:text="${out.customerNote}"></blockquote></dd>
-                <dt>Model</dt><dd class="muted small" th:text="${p.aiProvider != null ? p.modelLabel() : out.model}">OpenAI gpt-5.4-mini</dd>
-            </dl>
-        </section>
+    <div class="proposal-split">
+        <section th:replace="~{investigate/fragments :: judgement(${page})}"></section>
+        <section th:replace="~{investigate/fragments :: evidence(${page})}"></section>
     </div>
-
-    <div class="split">
-        <section class="card chosen">
-            <h2>Chosen: <span th:text="${p.treatment != null ? p.treatment.label() : 'None'}">Goodwill</span></h2>
-            <div th:replace="~{investigate/fragments :: draft(${page.chosen})}"></div>
-            <h3>Validator</h3>
-            <ul th:replace="~{investigate/fragments :: checklist(${page.checks})}"></ul>
-        </section>
-        <section class="card">
-            <h2>Not chosen: <span th:text="${page.alternative != null ? page.alternative.plan.treatment.label() : 'None'}">Balance returned</span></h2>
-            <th:block th:if="${page.alternative != null}">
-                <div th:replace="~{investigate/fragments :: draft(${page.alternative.plan})}"></div>
-                <h3>Would the validator pass it?</h3>
-                <ul th:replace="~{investigate/fragments :: checklist(${page.alternative.checks})}"></ul>
-            </th:block>
-        </section>
-    </div>
-
-    <section class="card">
-        <h2>Evidence</h2>
-        <h3>Quotes the investigator relied on</h3>
-        <p class="muted" th:if="${#lists.isEmpty(page.quotes)}">None.</p>
-        <ul class="quote-list">
-            <li th:each="q : ${page.quotes}">
-                <mark th:text="${q.text}">quote</mark>
-                <span class="badge" th:classappend="${q.found} ? 'ok' : 'bad'" th:text="${q.found} ? 'Found in evidence' : 'Not in evidence'">Found</span>
-            </li>
-        </ul>
-        <h3>Customer messages</h3>
-        <p class="muted" th:if="${#lists.isEmpty(page.messages)}">The customer sent no messages.</p>
-        <ul class="messages">
-            <li th:each="m : ${page.messages}">
-                <span class="muted small" th:text="${@fmt.timeText(m.sentAt)}"></span>
-                <p><th:block th:each="s : ${m.body}"><mark th:if="${s.marked}" th:text="${s.text}"></mark><th:block th:unless="${s.marked}" th:text="${s.text}"></th:block></th:block></p>
-            </li>
-        </ul>
-        <details>
-            <summary>Evidence bundle as the investigator saw it</summary>
-            <pre class="bundle"><th:block th:each="s : ${page.bundleSegments}"><mark th:if="${s.marked}" th:text="${s.text}"></mark><th:block th:unless="${s.marked}" th:text="${s.text}"></th:block></th:block></pre>
-        </details>
-    </section>
 </main>
 </body>
 </html>

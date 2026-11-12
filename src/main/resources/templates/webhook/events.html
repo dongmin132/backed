@@ -2,35 +2,61 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Webhooks', ~{::main})}">
 <body>
 <main class="container">
-    <h1>PayPal webhook events</h1>
-    <p class="muted">
-        Each event is stored once by its id and processed once. Webhooks never post to the ledger;
-        anything they mention that the ledger does not know is checked by the next
-        <a th:href="@{/close}">day close</a>.
-    </p>
+    <link rel="stylesheet" th:href="@{/css/topup.css}">
 
-    <section class="card">
-        <h2>Received <span class="muted small" th:text="${total + ' in total, newest first'}">0</span></h2>
-        <p class="muted" th:if="${#lists.isEmpty(events)}">No events received yet.</p>
-        <div style="overflow-x: auto" th:unless="${#lists.isEmpty(events)}">
-            <table class="table compact">
-                <thead>
-                <tr><th>Event</th><th>Type</th><th>Resource</th><th>Received</th><th>Processed</th></tr>
-                </thead>
-                <tbody>
-                <tr th:each="e : ${events}">
-                    <td><code th:text="${e.eventId}">WH-1</code></td>
-                    <td th:text="${e.eventType}">PAYMENT.CAPTURE.COMPLETED</td>
-                    <td><code th:if="${e.resourceId != null}" th:text="${e.resourceId}">ID</code></td>
-                    <td class="muted" th:text="${@fmt.time(e.receivedAt)}">time</td>
-                    <td>
-                        <span class="badge ok" th:if="${e.processedAt != null}">Processed</span>
-                        <span class="badge watch" th:if="${e.processedAt == null}">Not processed</span>
-                    </td>
-                </tr>
-                </tbody>
-            </table>
+    <header class="page-header">
+        <div>
+            <h1>PayPal webhook events</h1>
+            <p class="page-context">
+                Each event is stored once by its id and processed once. Webhooks never post to the ledger;
+                anything they mention that the ledger does not know is checked by the next
+                <a th:href="@{/close}">day close</a>.
+            </p>
         </div>
+        <div class="page-actions">
+            <a class="btn quiet" th:href="@{/topups}">Top-ups</a>
+            <a class="btn" th:href="@{/close}">Day close</a>
+        </div>
+    </header>
+
+    <section class="card" aria-labelledby="received">
+        <div class="panel-head">
+            <h2 id="received">Received</h2>
+            <span class="muted" th:text="${total + ' in total, newest first'}">0</span>
+        </div>
+
+        <div class="empty-state" th:if="${#lists.isEmpty(events)}">
+            <div class="empty-copy">
+                <h3 class="empty-title">No events received yet.</h3>
+                <p class="empty-text">PayPal sends events here as its payments change. Each one is kept once, by its id.</p>
+            </div>
+            <div class="empty-ghost" aria-hidden="true"><span></span><span></span></div>
+        </div>
+
+        <ul class="event-list" th:unless="${#lists.isEmpty(events)}">
+            <li class="event" th:each="e : ${events}">
+                <span class="status-icon" aria-hidden="true" th:classappend="${e.processedAt != null} ? 'ok' : 'watch'">
+                    <svg th:if="${e.processedAt != null}" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>
+                    <svg th:if="${e.processedAt == null}" viewBox="0 0 24 24"><path d="M12 6v8"/><path d="M12 18.5v0.5"/></svg>
+                </span>
+                <div class="event-main">
+                    <span class="event-title" th:if="${e.eventType != null}"
+                          th:text="${#strings.capitalize(#strings.toLowerCase(#strings.replace(#strings.replace(e.eventType, '.', ' '), '_', ' ')))}">Payment capture completed</span>
+                    <span class="event-ids">
+                        <span class="mono event-type" th:text="${e.eventType}">PAYMENT.CAPTURE.COMPLETED</span>
+                    </span>
+                    <dl class="topup-ids event-refs">
+                        <div><dt>Event</dt><dd><code th:text="${e.eventId}">WH-1</code></dd></div>
+                        <div th:if="${e.resourceId != null}"><dt>Resource</dt><dd><code th:text="${e.resourceId}">ID</code></dd></div>
+                    </dl>
+                </div>
+                <div class="event-when">
+                    <span class="badge ok" th:if="${e.processedAt != null}">Processed</span>
+                    <span class="badge watch" th:if="${e.processedAt == null}">Not processed</span>
+                    <span class="event-time" th:text="${@fmt.time(e.receivedAt)}">time</span>
+                </div>
+            </li>
+        </ul>
     </section>
 </main>
 </body>
