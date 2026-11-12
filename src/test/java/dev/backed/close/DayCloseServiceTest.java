@@ -7,6 +7,7 @@ import dev.backed.ledger.JournalLineDraft;
 import dev.backed.ledger.LedgerQueries;
 import dev.backed.paypal.CaptureResult;
 import dev.backed.paypal.FakePayPalGateway;
+import dev.backed.paypal.FaultSwitch;
 import dev.backed.paypal.RefundResult;
 import dev.backed.support.AbstractDbTest;
 import dev.backed.webhook.WebhookService;
@@ -139,6 +140,8 @@ class DayCloseServiceTest extends AbstractDbTest {
     void inDoubtTopupKeepsTheDayBroken() {
         fx.capturedTopup(customerA().id(), 1_000);
         fx.inDoubtTopup(customerB().id(), 2_500);
+        // The resolve step asks PayPal first; PayPal is down, so the top-up stays in doubt.
+        fakePayPal.failNextCapture(FakePayPalGateway.Failure.UNAVAILABLE, FakePayPalGateway.Timing.BEFORE_EFFECT);
 
         CloseOutcome outcome = close.runClose("maker");
 
@@ -146,18 +149,36 @@ class DayCloseServiceTest extends AbstractDbTest {
         assertThat(outcome.inDoubtCount()).isEqualTo(1);
         assertThat(outcome.unexplainedCents()).isZero();
         assertThat(outcome.openBreakIds()).isEmpty();
+
+        CloseOutcome next = close.runClose("maker");
+
+        assertThat(next.status()).isEqualTo(CloseStatus.CLOSED);
+        assertThat(next.inDoubtCount()).isZero();
+        assertThat(next.unexplainedCents()).isZero();
+        assertThat(jdbc.sql("select state from topups where customer_id = :c").param("c", customerB().id())
+                .query(String.class).single()).isEqualTo("CAPTURED");
     }
 
     @Test
     void refundFromAnInDoubtLegIsLeftToLegResolutionNotRaisedAsABreak() {
         CloseFixtures.Topup topup = fx.capturedTopup(customerA().id(), 4_000);
         fx.inDoubtCashout(topup, 1_500);
+        // The relay step re-sends the leg first; that call gets a 5xx, so the leg stays in doubt.
+        faults.arm(FaultSwitch.Fault.FAIL_NEXT_REFUND_WITH_5XX);
 
         CloseOutcome outcome = close.runClose("maker");
 
         assertThat(outcome.status()).isEqualTo(CloseStatus.BROKEN);
         assertThat(outcome.inDoubtCount()).isEqualTo(1);
         assertThat(outcome.openBreakIds()).isEmpty();
+        assertThat(jdbc.sql("select count(*) from breaks").query(Integer.class).single()).isZero();
+
+        CloseOutcome next = close.runClose("maker");
+
+        assertThat(next.status()).isEqualTo(CloseStatus.CLOSED);
+        assertThat(next.inDoubtCount()).isZero();
+        assertThat(next.unexplainedCents()).isZero();
+        assertThat(fakePayPal.refunds()).hasSize(1);
         assertThat(jdbc.sql("select count(*) from breaks").query(Integer.class).single()).isZero();
     }
 
@@ -232,6 +253,7 @@ class DayCloseServiceTest extends AbstractDbTest {
         assertThatThrownBy(() -> close.advance("maker")).hasMessageContaining("Run the close");
 
         fx.inDoubtTopup(customerA().id(), 1_000);
+        fakePayPal.failNextCapture(FakePayPalGateway.Failure.UNAVAILABLE, FakePayPalGateway.Timing.BEFORE_EFFECT);
         close.runClose("maker");
         assertThatThrownBy(() -> close.advance("maker")).hasMessageContaining("BROKEN");
 

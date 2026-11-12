@@ -1,5 +1,6 @@
 package dev.backed.close;
 
+import dev.backed.cashout.CashoutService;
 import dev.backed.config.Actors;
 import dev.backed.ledger.Account;
 import dev.backed.ledger.EntryKind;
@@ -85,7 +86,8 @@ public record CloseFixtures(JdbcClient jdbc, TransactionTemplate tx, JournalServ
             insertCashout(cashoutId, topup.customerId(), cents, "REQUESTED");
             insertLeg(legId, cashoutId, topup, cents, "PENDING", null);
         });
-        RefundResult refund = paypal.refundCapture("leg-" + legId, topup.capture().captureId(), cents, "Cash-out");
+        RefundResult refund = paypal.refundCapture("leg-" + legId, topup.capture().captureId(), cents,
+                CashoutService.NOTE_TO_PAYER);
         tx.executeWithoutResult(s -> {
             jdbc.sql("update cashout_legs set state = 'DONE', paypal_refund_id = :refund where id = :id")
                     .param("refund", refund.refundId())
@@ -112,7 +114,8 @@ public record CloseFixtures(JdbcClient jdbc, TransactionTemplate tx, JournalServ
             insertCashout(cashoutId, topup.customerId(), cents, "REQUESTED");
             insertLeg(legId, cashoutId, topup, cents, "IN_DOUBT", null);
         });
-        return paypal.refundCapture("leg-" + legId, topup.capture().captureId(), cents, "Cash-out");
+        return paypal.refundCapture("leg-" + legId, topup.capture().captureId(), cents,
+                CashoutService.NOTE_TO_PAYER);
     }
 
     private void insertCashout(UUID id, long customerId, long cents, String state) {
