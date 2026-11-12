@@ -45,8 +45,10 @@ public class SecurityConfig {
                         .requestMatchers("/pos", "/pos/**").hasAnyRole(CLERK, MAKER)
                         .requestMatchers(HttpMethod.POST, "/proposals/*/approve").hasRole(CHECKER)
                         .requestMatchers("/proposals", "/proposals/**").hasAnyRole(MAKER, CHECKER)
-                        .requestMatchers("/close", "/close/**", "/topups", "/topups/**", "/cashouts", "/cashouts/**",
-                                "/admin", "/admin/**").hasAnyRole(MAKER, CHECKER)
+                        .requestMatchers(HttpMethod.POST, "/breaks/*/investigate").hasRole(MAKER)
+                        .requestMatchers("/admin", "/admin/**").hasRole(MAKER)
+                        .requestMatchers("/close", "/close/**", "/topups", "/topups/**", "/cashouts", "/cashouts/**")
+                        .hasAnyRole(MAKER, CHECKER)
                         .anyRequest().authenticated())
                 .formLogin(form -> form.loginPage("/login").defaultSuccessUrl("/", false).permitAll())
                 .logout(logout -> logout.logoutUrl("/logout").logoutSuccessUrl("/login?logout").permitAll())
