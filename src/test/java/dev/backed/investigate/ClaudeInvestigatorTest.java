@@ -15,6 +15,7 @@ class ClaudeInvestigatorTest {
         assertThat(new ClaudeInvestigator("", "claude-opus-5-5", 60, "medium", true).configured()).isFalse();
         assertThat(new ClaudeInvestigator("  ", "claude-opus-5-5", 60, "medium", true).configured()).isFalse();
         assertThat(new ClaudeInvestigator("key", "claude-opus-5-5", 60, "medium", true).configured()).isTrue();
+        assertThat(new ClaudeInvestigator("key", "claude-opus-5-5", 60, "medium", true).provider()).isEqualTo("anthropic");
         assertThatThrownBy(() -> new ClaudeInvestigator("", "m", 60, "medium", true).investigate("{}"))
                 .isInstanceOf(InvestigatorException.class)
                 .hasMessage(ProposalService.NOT_CONFIGURED);
@@ -48,11 +49,11 @@ class ClaudeInvestigatorTest {
 
     @Test
     void schemaRequiresEveryFieldAndAllowsNoExtras() {
-        assertThat(ClaudeInvestigator.OUTPUT_SCHEMA).containsEntry("additionalProperties", false);
+        assertThat(InvestigatorPrompt.OUTPUT_SCHEMA).containsEntry("additionalProperties", false);
         @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) ClaudeInvestigator.OUTPUT_SCHEMA.get("properties");
+        Map<String, Object> properties = (Map<String, Object>) InvestigatorPrompt.OUTPUT_SCHEMA.get("properties");
         @SuppressWarnings("unchecked")
-        java.util.List<String> required = (java.util.List<String>) ClaudeInvestigator.OUTPUT_SCHEMA.get("required");
+        java.util.List<String> required = (java.util.List<String>) InvestigatorPrompt.OUTPUT_SCHEMA.get("required");
         assertThat(required).containsExactlyInAnyOrderElementsOf(properties.keySet());
         assertThat(properties).doesNotContainKeys("amount", "amount_cents");
     }

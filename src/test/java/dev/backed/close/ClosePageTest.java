@@ -79,7 +79,7 @@ class ClosePageTest extends AbstractDbTest {
         investigator.setConfigured(false);
         mvc.perform(get("/close").with(user("maker").roles("MAKER")))
                 .andExpect(content().string(not(containsString("/investigate"))))
-                .andExpect(content().string(containsString("AI investigator is not configured")));
+                .andExpect(content().string(containsString("AI investigator is not configured: set OPENAI_API_KEY")));
     }
 
     @Test

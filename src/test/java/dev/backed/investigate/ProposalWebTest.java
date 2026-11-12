@@ -81,11 +81,29 @@ class ProposalWebTest extends InvestigateTestBase {
         mvc.perform(get("/proposals").with(user("maker").roles("MAKER")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("AI investigator is not configured")))
+                .andExpect(content().string(containsString("OPENAI_API_KEY (OpenAI) or ANTHROPIC_API_KEY (Claude)")))
                 .andExpect(content().string(not(containsString("/breaks/" + b.id() + "/investigate"))));
 
         mvc.perform(post("/breaks/" + b.id() + "/investigate").with(user("maker").roles("MAKER")).with(csrf()))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(flash().attribute("error", "AI investigator is not configured"));
+                .andExpect(flash().attribute("error", ProposalService.NOT_CONFIGURED));
+    }
+
+    @Test
+    void pagesShowWhichProviderAndModelMadeTheProposal() throws Exception {
+        Break b = scenarios.goodwill(customerA().id());
+        investigator.respond(output(GOODWILL, BALANCE_RETURNED, Scenarios.COLD_COFFEE_NOTE));
+        long id = service.investigate(b.id(), "maker");
+        jdbc.sql("update proposals set ai_provider = 'openai', ai_model = 'gpt-6.1-sol' where id = :id")
+                .param("id", id).update();
+
+        mvc.perform(get("/proposals/" + id).with(user("checker").roles("CHECKER")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("OpenAI gpt-6.1-sol")));
+        mvc.perform(get("/proposals").with(user("checker").roles("CHECKER")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("OpenAI gpt-6.1-sol")))
+                .andExpect(content().string(containsString("Investigator: stub.")));
     }
 
     @Test

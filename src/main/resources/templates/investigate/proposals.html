@@ -9,6 +9,8 @@
 
     <section class="card">
         <h2>Open breaks</h2>
+        <p class="muted small" th:if="${aiConfigured}" th:text="${'Investigator: ' + aiInvestigator + '.'}">Investigator: OpenAI gpt-6.1-sol.</p>
+        <p class="muted small" th:unless="${aiConfigured}" th:text="${aiNotConfiguredReason}">AI investigator is not configured.</p>
         <p class="muted" th:if="${#lists.isEmpty(openBreaks)}">No open breaks. Run the close to look for new ones.</p>
         <table class="table" th:unless="${#lists.isEmpty(openBreaks)}">
             <thead>
@@ -38,7 +40,7 @@
         <p class="muted" th:if="${#lists.isEmpty(proposals)}">No proposals yet.</p>
         <table class="table" th:unless="${#lists.isEmpty(proposals)}">
             <thead>
-            <tr><th>Proposal</th><th>Break</th><th>Customer</th><th class="num">Amount</th><th>Treatment</th><th>Status</th><th>Maker</th><th>Decided by</th><th>Created</th></tr>
+            <tr><th>Proposal</th><th>Break</th><th>Customer</th><th class="num">Amount</th><th>Treatment</th><th>Status</th><th>Model</th><th>Maker</th><th>Decided by</th><th>Created</th></tr>
             </thead>
             <tbody>
             <tr th:each="p : ${proposals}">
@@ -54,6 +56,7 @@
                     <span class="badge" th:classappend="${needsHuman} ? 'watch' : ${@fmt.tone(p.status)}"
                           th:text="${needsHuman} ? 'Needs a human' : ${@fmt.label(p.status)}">Pending approval</span>
                 </td>
+                <td class="muted small" th:text="${p.modelLabel()}">OpenAI gpt-6.1-sol</td>
                 <td th:text="${@fmt.actor(p.createdBy)}">maker</td>
                 <td th:text="${@fmt.actor(p.decidedBy)}"></td>
                 <td class="muted small" th:text="${@fmt.time(p.createdAt)}"></td>

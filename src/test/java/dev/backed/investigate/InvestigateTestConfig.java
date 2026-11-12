@@ -67,6 +67,11 @@ public class InvestigateTestConfig {
         }
 
         @Override
+        public String provider() {
+            return "stub";
+        }
+
+        @Override
         public InvestigatorOutput investigate(String evidenceBundleJson) {
             calls.incrementAndGet();
             lastBundle = evidenceBundleJson;

@@ -85,7 +85,7 @@
                     <span th:text="${out.rejectedBecause}"></span>
                 </dd>
                 <dt>Note to customer</dt><dd><blockquote class="customer-note" th:text="${out.customerNote}"></blockquote></dd>
-                <dt>Model</dt><dd class="muted small" th:text="${out.model}"></dd>
+                <dt>Model</dt><dd class="muted small" th:text="${p.aiProvider != null ? p.modelLabel() : out.model}">OpenAI gpt-6.1-sol</dd>
             </dl>
         </section>
     </div>

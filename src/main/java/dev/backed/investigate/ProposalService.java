@@ -27,7 +27,8 @@ import java.util.List;
 @Service
 public class ProposalService {
 
-    public static final String NOT_CONFIGURED = "AI investigator is not configured";
+    public static final String NOT_CONFIGURED =
+            "AI investigator is not configured: set OPENAI_API_KEY (OpenAI) or ANTHROPIC_API_KEY (Claude).";
 
     private static final Logger log = LoggerFactory.getLogger(ProposalService.class);
 
@@ -57,6 +58,16 @@ public class ProposalService {
         return investigator.configured();
     }
 
+    /** Why investigating is unavailable, naming the variable to set. */
+    public String investigatorNotConfiguredReason() {
+        return investigator.notConfiguredReason();
+    }
+
+    /** "OpenAI gpt-6.1-sol" while configured, empty otherwise. */
+    public String investigatorDescription() {
+        return investigator.configured() ? AiProvider.describe(investigator.provider(), investigator.model()) : "";
+    }
+
     /**
      * Asks the investigator about an OPEN break and stores the proposal, validated. A proposal that
      * passes every check is PENDING_APPROVAL and its break becomes PROPOSED; otherwise it is stored
@@ -66,7 +77,7 @@ public class ProposalService {
      */
     public long investigate(long breakId, String maker) {
         if (!investigator.configured()) {
-            throw new InvestigationException(NOT_CONFIGURED);
+            throw new InvestigationException(investigator.notConfiguredReason());
         }
         Break b = breaks.findById(breakId)
                 .orElseThrow(() -> new InvestigationException("Break #" + breakId + " does not exist."));
@@ -94,6 +105,8 @@ public class ProposalService {
         AlternativeDraft alt = new AlternativeDraft(alternative,
                 DraftValidator.ledgerChecks(ctx, alternative, DraftValidator.Stage.PROPOSE));
         List<String> failures = DraftValidator.failures(checks);
+        String provider = investigator.provider();
+        String model = output.model() == null || output.model().isBlank() ? investigator.model() : output.model();
 
         Long id = tx.execute(status -> {
             if (ok && !breaks.markProposed(breakId)) {
@@ -102,9 +115,10 @@ public class ProposalService {
             return proposals.insert(breakId, output.treatment(), Json.write(output), Json.write(chosen), ok,
                     failures.isEmpty() ? null : String.join("\n", failures),
                     ok ? ProposalStatus.PENDING_APPROVAL : ProposalStatus.REJECTED_BY_VALIDATOR,
-                    maker, bundle.json(), Json.write(alt), Json.write(checks));
+                    maker, bundle.json(), Json.write(alt), Json.write(checks), provider, model);
         });
-        log.info("Proposal #{} for break #{}: {} ({})", id, breakId, output.treatment(), ok ? "valid" : "rejected");
+        log.info("Proposal #{} for break #{}: {} ({}) by {}", id, breakId, output.treatment(), ok ? "valid" : "rejected",
+                AiProvider.describe(provider, model));
         return id;
     }
 

@@ -81,6 +81,8 @@
     <section class="card">
         <h2>Open breaks <span class="muted small" th:text="${#lists.size(openBreaks) + ' open'}">0 open</span></h2>
         <p class="muted" th:if="${#lists.isEmpty(openBreaks)}">PayPal shows nothing the ledger cannot explain.</p>
+        <p class="muted small" th:if="${!#lists.isEmpty(openBreaks) and !aiConfigured}" th:text="${aiNotConfiguredReason}">
+            AI investigator is not configured.</p>
         <div class="table-wrap" th:unless="${#lists.isEmpty(openBreaks)}">
             <table class="table">
                 <thead>

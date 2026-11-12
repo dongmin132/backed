@@ -47,7 +47,8 @@
     <div class="config-banner-inner">
         <span th:unless="${paypalConfigured}">PayPal sandbox credentials are not set, so every PayPal call will fail:
             set <code>PAYPAL_CLIENT_ID</code> and <code>PAYPAL_CLIENT_SECRET</code>.</span>
-        <span th:unless="${aiConfigured}">AI investigator is not configured: set <code>ANTHROPIC_API_KEY</code>.</span>
+        <span th:unless="${aiConfigured}" th:text="${aiNotConfiguredReason}">AI investigator is not configured: set
+            OPENAI_API_KEY (OpenAI) or ANTHROPIC_API_KEY (Claude).</span>
     </div>
 </div>
 <main th:replace="${content}">

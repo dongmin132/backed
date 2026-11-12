@@ -97,10 +97,22 @@ rejected with a 4xx. During development it passed all five checks.
 
 ## How AI is used
 
-The investigator is one Claude API call per break (`ClaudeInvestigator`, model `claude-opus-5-5`
-by default, structured JSON output, no tools). Its input is one evidence document: PayPal's refund
-or capture as returned by PayPal, including the note to payer, the customer's recent ledger
-history, their messages to the shop, their top-ups, their balance and any other open breaks.
+The investigator is one model call per break, with no tools. It runs on OpenAI or on Claude:
+
+- **OpenAI** (`OpenAiInvestigator`): the Responses API called over HTTPS with the JDK HTTP client,
+  Structured Outputs with a JSON schema in strict mode, `store: false`. Default model `gpt-6.1-sol`.
+- **Claude** (`ClaudeInvestigator`): the Messages API through the Anthropic Java SDK, structured JSON
+  output. Default model `claude-opus-5-5`.
+
+Both send the same prompt and hold the model to the same JSON schema. `BACKED_AI_PROVIDER` (`openai`
+or `anthropic`) picks one; when it is not set, OpenAI is used if `OPENAI_API_KEY` is set, otherwise
+Claude if `ANTHROPIC_API_KEY` is set. `BACKED_AI_MODEL` overrides the model. The demo runs on OpenAI
+with `gpt-6.1-sol`. Every proposal records the provider and model that answered, and the proposal
+pages show it.
+
+Its input is one evidence document: PayPal's refund or capture as returned by PayPal, including the
+note to payer, the customer's recent ledger history, their messages to the shop, their top-ups, their
+balance and any other open breaks.
 
 | Who | Decides |
 |---|---|
@@ -108,9 +120,10 @@ history, their messages to the shop, their top-ups, their balance and any other 
 | Code (`DraftBuilder`, `DraftValidator`) | The journal lines, from the treatment and PayPal's amounts. Then a checklist: the break is still open, the entry balances, the amounts equal PayPal's (recomputed independently), only the accounts allowed for that treatment are used, every quote is a verbatim substring of the evidence, the customer's balance would not go below zero, and any dollar amount in the customer note appears in the evidence. A draft that fails is stored as rejected with the reasons. |
 | A person | The `maker` requests the investigation. A different user, the `checker`, approves it. The server rejects self-approval, re-validates against fresh data at approval time, and posts the entry once even if two approvals race. The close then runs again. |
 
-Without `ANTHROPIC_API_KEY` everything else works; every staff page shows a banner saying the
-investigator is not configured, and the Investigate buttons are hidden. Missing PayPal credentials get
-the same kind of banner.
+Without either key everything else works; every staff page shows a banner saying the investigator is
+not configured and which variable to set, and the Investigate buttons are hidden. Missing PayPal
+credentials get the same kind of banner. A failed call (timeout, rate limit, refusal, an answer that
+does not fit the schema) is shown on the page as a short message, and nothing is proposed.
 
 ## Run it
 
@@ -119,7 +132,8 @@ You need Java 21. Nothing else: an embedded PostgreSQL starts with the app.
 ```sh
 export PAYPAL_CLIENT_ID=...        # PayPal sandbox REST app
 export PAYPAL_CLIENT_SECRET=...
-export ANTHROPIC_API_KEY=...       # optional; only the investigator needs it
+export OPENAI_API_KEY=...          # optional; only the investigator needs a key
+# or: export ANTHROPIC_API_KEY=... (with both set, OpenAI is used unless BACKED_AI_PROVIDER=anthropic)
 ./gradlew bootRun
 ```
 
@@ -150,9 +164,10 @@ of it, then exits with the number of failed checks):
 ./gradlew bootRun --args='--spring.profiles.active=sandbox-check'
 ```
 
-Run the tests. PayPal and the model are in-memory stand-ins and PostgreSQL is real; nothing calls
-the network unless `ANTHROPIC_API_KEY` is exported in the shell, which also runs
-`LiveInvestigatorTest` against the Claude API:
+Run the tests. PayPal and the model are in-memory stand-ins and PostgreSQL is real; the OpenAI and
+PayPal adapters are tested against local stub servers. Nothing calls the network unless
+`OPENAI_API_KEY` or `ANTHROPIC_API_KEY` is exported in the shell (a key that is only in `.env` does
+not count): that runs `LiveInvestigatorTest`, three paid calls to the provider chosen as above.
 
 ```sh
 ./gradlew test
@@ -183,6 +198,8 @@ All tests run against a real PostgreSQL.
 | Self-approval is rejected, two simultaneous approvals post one entry, and two approvals that book the same refund cannot both post | `ApprovalTest`, `ProposalWebTest`, `RelatedApprovalRaceTest` |
 | A typed amount with a decimal comma ("4,50") is refused instead of read as $450.00 | `MoneyTest` |
 | The PayPal adapter sends the request id, maps PayPal's errors as in the table below, and makes exactly one request per call | `SdkPayPalGatewayTest` (against a local stub, offline) |
+| The OpenAI adapter sends the shared prompt with a strict JSON schema, retries at most once and only on a rate limit or 5xx (never on a quota error), and turns refusals, malformed answers and timeouts into a clear message | `OpenAiInvestigatorTest` (against a local stub, offline) |
+| Exactly one investigator is active for every combination of keys and `BACKED_AI_PROVIDER` | `InvestigatorConfigTest` |
 | The whole demo story works through the web routes | `DemoStoryTest` |
 
 ## Error classification
@@ -208,15 +225,21 @@ it waits for a person and the close stays BROKEN.
   card data never touches the server.
 - This is not a regulated stored-value product, and it makes no claim of legal, regulatory or
   PCI compliance.
-- The investigator has been exercised with a scripted stand-in. `LiveInvestigatorTest` calls the
-  real model on three situations, but only runs when `ANTHROPIC_API_KEY` is set.
+- The demo story test uses a scripted stand-in for the model. `LiveInvestigatorTest` calls the real
+  model on three situations (cold coffee goodwill, moving away balance returned, charged twice
+  duplicate reversal) and only runs when a key is exported. Run against OpenAI `gpt-6.1-sol` on
+  2026-11-12, it got the expected treatment in all three, with quotes that passed the validator. The
+  demo flow through the pages (sandbox top-up, refund made outside the ledger, close, investigate) was
+  also run once on OpenAI and gave a valid *balance returned* proposal. The Claude path has offline
+  tests only here; we had no Anthropic API credit to run it live.
 - Webhook signature verification is off by default and has not been run against PayPal.
 - Close runs are not serialised against each other, and the close reads PayPal orders one at a
   time, which is fine at demo scale.
 
 ## Tools used
 
-- The Claude API, through the Anthropic Java SDK, for the investigator.
+- The OpenAI API (Responses API with Structured Outputs, over the JDK HTTP client) for the investigator
+  in the demo; the Claude API, through the Anthropic Java SDK, as the other supported provider.
 - The PayPal Java Server SDK, generated by APIMatic, for Orders and Payments.
 - Spring Boot 4, Thymeleaf, PostgreSQL (embedded through `io.zonky.test:embedded-postgres`), Flyway.
 - The code was written with an AI coding agent.

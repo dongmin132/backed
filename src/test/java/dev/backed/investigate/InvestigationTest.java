@@ -29,6 +29,8 @@ class InvestigationTest extends InvestigateTestBase {
         assertThat(p.status()).isEqualTo(ProposalStatus.PENDING_APPROVAL);
         assertThat(p.validationOk()).isTrue();
         assertThat(p.createdBy()).isEqualTo("maker");
+        assertThat(p.aiProvider()).isEqualTo("stub");
+        assertThat(p.aiModel()).isEqualTo("stub");
         assertThat(breaks.findById(b.id()).orElseThrow().status()).isEqualTo(BreakStatus.PROPOSED);
 
         DraftPlan draft = Json.read(p.draft(), DraftPlan.class);
@@ -168,7 +170,7 @@ class InvestigationTest extends InvestigateTestBase {
 
         assertThatThrownBy(() -> service.investigate(brk.id(), "maker"))
                 .isInstanceOf(InvestigationException.class)
-                .hasMessage("AI investigator is not configured");
+                .hasMessage(ProposalService.NOT_CONFIGURED);
         assertThat(investigator.calls()).isZero();
     }
 

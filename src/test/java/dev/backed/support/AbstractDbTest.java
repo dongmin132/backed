@@ -27,12 +27,19 @@ import java.util.UUID;
  * data (accounts, business date, three demo customers with zero balance) is loaded again, and the
  * fake PayPal and the fault switch are reset.
  *
- * <p>Scheduling is off, PayPal is {@link FakePayPalGateway} behind the fault-injecting wrapper.
+ * <p>Scheduling is off, PayPal is {@link FakePayPalGateway} behind the fault-injecting wrapper, and
+ * no AI key is set, so the real investigator is "not configured".
  * Add @AutoConfigureMockMvc on a subclass to drive controllers.
  */
 @SpringBootTest(properties = {
         "backed.scheduling.enabled=false",
-        "backed.paypal.mode=fake"
+        "backed.paypal.mode=fake",
+        // No AI key reaches the tests, not even from a local .env: nothing calls a model. LiveInvestigatorTest
+        // puts the keys back when one is exported in the shell.
+        "backed.ai.provider=",
+        "backed.ai.model=",
+        "backed.openai.api-key=",
+        "backed.anthropic.api-key="
 })
 @Import(FakePayPalConfig.class)
 public abstract class AbstractDbTest {

@@ -2,7 +2,7 @@ package dev.backed.investigate;
 
 import java.time.OffsetDateTime;
 
-/** A proposals row. JSON columns are kept as text. */
+/** A proposals row. JSON columns are kept as text. aiProvider and aiModel name who made the call. */
 public record Proposal(
         long id,
         long breakId,
@@ -20,5 +20,12 @@ public record Proposal(
         String decidedBy,
         String evidenceBundle,
         String alternativeDraft,
-        String validationChecks) {
+        String validationChecks,
+        String aiProvider,
+        String aiModel) {
+
+    /** "OpenAI gpt-6.1-sol", or empty for a proposal made before the model was recorded. */
+    public String modelLabel() {
+        return AiProvider.describe(aiProvider, aiModel);
+    }
 }

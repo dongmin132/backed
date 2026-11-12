@@ -27,7 +27,14 @@ public class ProposalRepository {
             String createdBy,
             String decidedBy,
             Long postedEntryId,
-            OffsetDateTime createdAt) {
+            OffsetDateTime createdAt,
+            String aiProvider,
+            String aiModel) {
+
+        /** "OpenAI gpt-6.1-sol", or empty for a proposal made before the model was recorded. */
+        public String modelLabel() {
+            return AiProvider.describe(aiProvider, aiModel);
+        }
     }
 
     private final JdbcClient jdbc;
@@ -38,12 +45,13 @@ public class ProposalRepository {
 
     public long insert(long breakId, Treatment treatment, String aiOutput, String draft, boolean validationOk,
                        String validationErrors, ProposalStatus status, String createdBy, String evidenceBundle,
-                       String alternativeDraft, String validationChecks) {
+                       String alternativeDraft, String validationChecks, String aiProvider, String aiModel) {
         return jdbc.sql("""
                         insert into proposals (break_id, treatment, ai_output, draft, validation_ok, validation_errors,
-                                               status, created_by, evidence_bundle, alternative_draft, validation_checks)
+                                               status, created_by, evidence_bundle, alternative_draft, validation_checks,
+                                               ai_provider, ai_model)
                         values (:breakId, :treatment, :aiOutput, :draft, :ok, :errors,
-                                :status, :createdBy, :bundle, :alternative, :checks)
+                                :status, :createdBy, :bundle, :alternative, :checks, :aiProvider, :aiModel)
                         returning id
                         """)
                 .param("breakId", breakId)
@@ -57,6 +65,8 @@ public class ProposalRepository {
                 .param("bundle", evidenceBundle)
                 .param("alternative", alternativeDraft)
                 .param("checks", validationChecks)
+                .param("aiProvider", aiProvider)
+                .param("aiModel", aiModel)
                 .query(Long.class)
                 .single();
     }
@@ -83,7 +93,8 @@ public class ProposalRepository {
     public List<Summary> recent(int limit) {
         return jdbc.sql("""
                         select p.id, p.break_id, b.kind, b.paypal_ref, b.amount_cents, c.name as customer_name,
-                               p.treatment, p.status, p.created_by, p.decided_by, p.posted_entry_id, p.created_at
+                               p.treatment, p.status, p.created_by, p.decided_by, p.posted_entry_id, p.created_at,
+                               p.ai_provider, p.ai_model
                           from proposals p
                           join breaks b on b.id = p.break_id
                           left join customers c on c.id = b.customer_id
@@ -103,7 +114,9 @@ public class ProposalRepository {
                         rs.getString("created_by"),
                         rs.getString("decided_by"),
                         rs.getObject("posted_entry_id", Long.class),
-                        rs.getObject("created_at", OffsetDateTime.class)))
+                        rs.getObject("created_at", OffsetDateTime.class),
+                        rs.getString("ai_provider"),
+                        rs.getString("ai_model")))
                 .list();
     }
 
@@ -149,6 +162,8 @@ public class ProposalRepository {
                 rs.getString("decided_by"),
                 rs.getString("evidence_bundle"),
                 rs.getString("alternative_draft"),
-                rs.getString("validation_checks"));
+                rs.getString("validation_checks"),
+                rs.getString("ai_provider"),
+                rs.getString("ai_model"));
     }
 }
