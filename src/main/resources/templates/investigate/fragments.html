@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<!--/* Fragments for the proposal page. */-->
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--/* A drafted entry: its lines and what it does to the customer and the shop. */-->
+<div th:fragment="draft(plan)">
+    <th:block th:if="${plan == null}"><p class="muted">No draft.</p></th:block>
+    <th:block th:if="${plan != null}">
+        <p class="muted" th:if="${!#lists.isEmpty(plan.problems)}" th:text="${#strings.listJoin(plan.problems, ' ')}">Why no entry</p>
+        <table class="table compact" th:if="${!#lists.isEmpty(plan.lines)}">
+            <thead><tr><th>Account</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
+            <tbody>
+            <tr th:each="l : ${plan.lines}">
+                <td><code th:text="${l.account}">PAYPAL_CASH</code></td>
+                <td class="num" th:text="${l.debitCents > 0} ? ${@fmt.money(l.debitCents)} : ''"></td>
+                <td class="num" th:text="${l.creditCents > 0} ? ${@fmt.money(l.creditCents)} : ''"></td>
+            </tr>
+            </tbody>
+        </table>
+        <dl class="effects" th:if="${!#lists.isEmpty(plan.lines)}">
+            <dt>Customer balance</dt>
+            <dd class="num" th:text="${plan.customerBalanceEffectCents == 0} ? 'No change' : ${@fmt.signed(plan.customerBalanceEffectCents)}">No change</dd>
+            <dt>Shop profit</dt>
+            <dd class="num" th:text="${plan.shopResultEffectCents == 0} ? 'No change' : ${@fmt.signed(plan.shopResultEffectCents)}">No change</dd>
+            <dt>PayPal cash in the ledger</dt>
+            <dd class="num" th:text="${plan.paypalCashEffectCents == 0} ? 'No change' : ${@fmt.signed(plan.paypalCashEffectCents)}">No change</dd>
+        </dl>
+        <p class="muted small" th:if="${plan.alsoResolves != null}"
+           th:text="${'Also resolves the ' + @fmt.label(plan.alsoResolves.kind).toLowerCase() + ' ' + plan.alsoResolves.paypalRef + '.'}"></p>
+    </th:block>
+</div>
+
+<!--/* The validator's checklist. */-->
+<ul class="checklist" th:fragment="checklist(checks)">
+    <li th:each="c : ${checks}">
+        <span><span class="badge" th:classappend="${c.ok} ? 'ok' : 'bad'" th:text="${c.ok} ? 'Pass' : 'Fail'">Pass</span></span>
+        <span><span th:text="${c.name}">Entry balances</span><span class="detail" th:text="${c.detail}"></span></span>
+    </li>
+</ul>
+
+</body>
+</html>
