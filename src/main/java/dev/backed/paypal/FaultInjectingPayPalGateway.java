@@ -1,10 +1,16 @@
 package dev.backed.paypal;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * Wraps the real gateway and applies the armed {@link FaultSwitch} flags. The bean that other
- * modules inject as PayPalGateway should be this wrapper around the SDK adapter.
+ * modules inject as PayPalGateway is this wrapper around the SDK adapter (or the fake in tests).
+ * Every injected fault is logged at WARN with the prefix "FAULT INJECTED".
  */
 public class FaultInjectingPayPalGateway implements PayPalGateway {
+
+    private static final Logger log = LoggerFactory.getLogger(FaultInjectingPayPalGateway.class);
 
     private final PayPalGateway delegate;
     private final FaultSwitch faults;
@@ -14,6 +20,7 @@ public class FaultInjectingPayPalGateway implements PayPalGateway {
         this.faults = faults;
     }
 
+    /** The wrapped gateway, for calls that must bypass fault injection (a refund made outside the ledger). */
     public PayPalGateway delegate() {
         return delegate;
     }
@@ -21,8 +28,19 @@ public class FaultInjectingPayPalGateway implements PayPalGateway {
     @Override
     public CaptureResult captureCard(String requestId, long amountCents, String customId, TestCard card) {
         boolean drop = faults.consume(FaultSwitch.Fault.DROP_NEXT_CAPTURE_RESPONSE);
-        CaptureResult result = delegate.captureCard(requestId, amountCents, customId, card);
+        CaptureResult result;
+        try {
+            result = delegate.captureCard(requestId, amountCents, customId, card);
+        } catch (RuntimeException e) {
+            if (drop) {
+                log.warn("FAULT INJECTED: drop-capture-response was armed for request {}, but PayPal failed the "
+                        + "capture itself ({}); the real failure is passed on", requestId, e.toString());
+            }
+            throw e;
+        }
         if (drop) {
+            log.warn("FAULT INJECTED: PayPal accepted capture request {} (order {}, capture {}); dropping the "
+                    + "response and reporting outcome unknown", requestId, result.orderId(), result.captureId());
             throw new PayPalOutcomeUnknownException(
                     "Injected fault: capture response dropped after PayPal accepted request " + requestId);
         }
@@ -32,9 +50,13 @@ public class FaultInjectingPayPalGateway implements PayPalGateway {
     @Override
     public RefundResult refundCapture(String requestId, String captureId, long amountCents, String noteToPayer) {
         if (faults.consume(FaultSwitch.Fault.FAIL_NEXT_REFUND_WITH_5XX)) {
+            log.warn("FAULT INJECTED: refund request {} on capture {} failed with 503 before reaching PayPal",
+                    requestId, captureId);
             throw new PayPalUnavailableException("Injected fault: refund failed with 503", 503, null);
         }
         if (faults.consume(FaultSwitch.Fault.DECLINE_NEXT_REFUND)) {
+            log.warn("FAULT INJECTED: refund request {} on capture {} declined with 422 before reaching PayPal",
+                    requestId, captureId);
             throw new PayPalDeclinedException("Injected fault: refund declined", 422, "INJECTED_DECLINE", null);
         }
         return delegate.refundCapture(requestId, captureId, amountCents, noteToPayer);
