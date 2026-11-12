@@ -6,6 +6,31 @@ PayPal is the only rail the money moves on, and every day Backed closes its book
 own records. When PayPal shows something the ledger cannot explain, an AI investigator reads the
 evidence and proposes a correction, code checks it, and a second person approves it.
 
+## What it looks like
+
+These are from a development run against the PayPal sandbox, after the demo top-ups, a counter sale
+and two refunds made outside the ledger, before anyone has asked the AI about them.
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+The dashboard: what customers are owed, what PayPal holds, the last close and what needs attention.
+
+![Top-ups page](docs/screenshots/topups.png)
+
+Top-ups: each card payment with PayPal's answer, its fee, and the order, capture and request ids.
+
+![Day close with a break on stage](docs/screenshots/day-close.png)
+
+The day close: the band shows progress, where the gap is and what is left, and the card on stage waits for Investigate.
+
+![Ledger](docs/screenshots/ledger.png)
+
+The ledger: one card per journal entry, its debits and credits, and who made and approved it.
+
+![A customer's page on a phone](docs/screenshots/customer-phone.png)
+
+A customer's own page on a phone: balance, recent activity, add money and cash out.
+
 ## The problem
 
 A shop that holds prepaid balances owes that money to its customers, and the owner usually keeps
@@ -28,40 +53,56 @@ the cent. Anything else becomes a break that is investigated, corrected and appr
 
 The demo uses three fictional members of a small climbing gym. Each has a private page
 (`/c/{token}`) where they top up, cash out and message the shop. Staff sign in as `clerk`,
-`maker` or `checker`.
+`maker` or `checker`. The staff menu has Dashboard, Counter, Top-ups, Cash-outs, Close, Proposals,
+Ledger and Faults, and shows each role only the pages it can open.
 
-1. **Top-up.** Maya adds $50.00 on her page. Backed creates a PayPal order paid with a sandbox
-   card, PayPal captures it, and the ledger credits her $50.00 and books PayPal's fee.
-2. **Lost response.** On the Faults page the maker arms "drop the response of the next capture".
-   Maya adds $30.00; PayPal charges the card but Backed never hears back. Her page says
-   *Processing ... please do not pay again*, and a second top-up attempt is refused while the first
-   is in doubt.
-3. **Resolve.** On the Top-ups page the maker resolves it. Backed re-sends the same
-   `PayPal-Request-Id`, PayPal returns the capture it already made, and Maya is credited once.
-4. **Spend.** The clerk charges a $12.50 day pass at the counter. The debit is conditional in the
-   database, so a balance can never go below zero, even under concurrent sales.
-5. **A refund outside the ledger.** On the Faults page the maker refunds $20.00 of Maya's first
-   top-up directly at PayPal with the note "Returning $20.00 of your class pack balance, as you
-   asked". This stands in for a refund made by hand in the PayPal dashboard. Nothing is written to
-   the ledger.
-6. **Close.** The maker runs the day close. Backed reads every order from PayPal and finds a refund
-   it has no record of. The day is **BROKEN**: one unbooked refund, $20.00 unexplained, with
-   PayPal's note shown next to it.
-7. **Investigate.** The maker asks the investigator about the break. The model reads PayPal's
-   refund, Maya's ledger history and her message ("Could you send $20 of my class pack back to my
-   card?") and picks *balance returned*, quoting both. Code builds the journal entry from PayPal's
-   amounts and runs its checks; the page shows the chosen draft and the rejected alternative side
-   by side with their effect on Maya's balance and the shop's results.
-8. **Approve.** The maker cannot approve their own proposal. The checker approves it, the
-   correcting entry is posted dated the next business date, and the close runs again: **CLOSED**,
-   nothing unexplained.
-9. **Cash-out.** Maya cashes out the rest of her balance. Backed splits the refund across her
-   captures, newest first, never more than is still refundable on each, and a relay sends each
-   refund to PayPal outside any database transaction.
-10. **Close again.** The final close is CLOSED and the business date can move on.
+1. **Top-up.** Maya adds $50.00 on her page (**Add money**, then **Top up**). Backed creates a
+   PayPal order paid with a sandbox card, PayPal captures it, and the ledger credits her $50.00 and
+   books PayPal's fee.
+2. **Lost response.** On the Demo faults page (Faults in the menu) the maker arms "Drop the response
+   of the next capture after PayPal has accepted it". Maya adds $30.00; PayPal charges the card but
+   Backed never hears back. Her page says *Processing: PayPal has not confirmed your $30.00 payment
+   yet ... Please do not pay again.* and lists the payment as *Waiting for PayPal*, and a second
+   top-up attempt is refused while the first is in doubt.
+3. **Resolve.** On the Top-ups page the payment is shown as *Not sure yet*, and the maker presses
+   **Ask PayPal now**. Backed re-sends the same `PayPal-Request-Id`, PayPal returns the capture it
+   already made, and Maya is credited once.
+4. **Spend.** On the Counter page the clerk charges a $12.50 day pass to Maya's balance. The debit
+   is conditional in the database, so a balance can never go below zero, even under concurrent
+   sales.
+5. **A refund outside the ledger.** On the Demo faults page the maker refunds $20.00 of Maya's
+   first top-up directly at PayPal (**Refund at PayPal, not in the ledger**) with the note
+   "Returning $20.00 of your class pack balance, as you asked". This stands in for a refund made by
+   hand in the PayPal dashboard. Nothing is written to the ledger.
+6. **Close.** On the Day close page (Close in the menu) the maker presses **Run close**. Backed
+   reads every order from PayPal and finds a refund it has no record of. The day is **Broken**, with
+   $20.00 unexplained. The page shows one break at a time: a band with the progress (refunds to
+   explain), a small waterfall from the books to PayPal and the amount left, and under it a card for
+   Maya's refund with PayPal's refund note.
+7. **Investigate.** On that card ("Ask the AI what this refund was") the maker presses
+   **Investigate**. The model reads PayPal's refund, Maya's ledger history and her message ("Could
+   you send $20 of my class pack back to my card?") and picks *balance returned*, quoting both. Code
+   builds the journal entry from PayPal's amounts and runs its checks. The maker is back on the day
+   close, and the card now shows what the AI read with the quoted words marked, the AI's call, and
+   what approving changes in the books: the entry lines, and PayPal cash, Maya's balance and the
+   unexplained amount now and after posting, with a switch to the treatment the AI turned down and
+   one line on the effect on Maya's balance and the shop's profit. The full reasoning and evidence
+   are on the proposal page.
+8. **Approve.** The bottom of the card is the relay from maker to checker to posted. The maker
+   cannot approve their own proposal; the card says a different person with the checker role
+   approves it. The checker opens the same day close, where the card says *Ready to approve*, and
+   presses **Approve and post** (or **Dismiss**); either way the checker comes back to the day
+   close. Approving posts the correcting entry dated the next business date and runs the close
+   again: **Closed**, "Closed, to the cent", nothing unexplained.
+9. **Cash-out.** Maya presses **Cash out everything** on her page. Backed splits the refund across
+   her captures, newest first, never more than is still refundable on each, and a relay sends each
+   refund to PayPal outside any database transaction. The relay runs by itself every few seconds;
+   **Send refunds now** on the Cash-outs page runs it at once.
+10. **Close again.** The final close is **Closed**, and **Advance to next business day** moves the
+    business date on.
 
-This exact sequence, with PayPal and the model replaced by in-memory stand-ins, is the test
-`DemoStoryTest`.
+The same sequence through the same web routes, with PayPal and the model replaced by in-memory
+stand-ins, is the test `DemoStoryTest`.
 
 ## How PayPal is used
 
@@ -72,7 +113,7 @@ the sandbox, in `SdkPayPalGateway`.
 |---|---|---|
 | Orders v2: create order (`intent: CAPTURE`, `payment_source.card`) | top-up | Charges the customer's sandbox card in one call. `custom_id` carries the top-up id. |
 | Orders v2: capture order | top-up | Only if PayPal leaves the order `APPROVED` instead of completing it on create. |
-| Payments v2: refund captured payment | cash-out relay, Faults page | Pays a balance back to the card it came from, with a note to the payer. |
+| Payments v2: refund captured payment | cash-out relay, Demo faults page | Pays a balance back to the card it came from, with a note to the payer. |
 | Orders v2: show order details | day close, in-doubt resolution | The close compares every order's captures and refunds, including refunds made outside Backed, with the ledger. |
 | Payments v2: show captured payment details | day close, investigator | Gross, fee and net of a capture, and its order. |
 | Webhooks: `PAYMENT.CAPTURE.COMPLETED`, `PAYMENT.CAPTURE.REFUNDED` | `POST /webhooks/paypal` | Each event is stored once by its id; the next close checks any capture or refund it names. |
@@ -172,6 +213,9 @@ not count): that runs `LiveInvestigatorTest`, three paid calls to the provider c
 ```sh
 ./gradlew test
 ```
+
+The suite has 179 tests. Without an exported key, one of them, `LiveInvestigatorTest`, is skipped
+by design.
 
 The data lives in the embedded database and starts fresh on every run. To use your own PostgreSQL,
 set `BACKED_DB_URL`, `BACKED_DB_USER` and `BACKED_DB_PASSWORD`.
