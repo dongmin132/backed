@@ -91,12 +91,20 @@ G = gross captured, F = PayPal fee, all in cents.
 | cash-out requested X | Dr `CUSTOMER_PREPAID` X, Cr `CASHOUT_CLEARING` X | `−X` conditional |
 | cash-out leg refunded R | Dr `CASHOUT_CLEARING` R, Cr `PAYPAL_CASH` R | none |
 | cash-out leg failed for good R | Dr `CASHOUT_CLEARING` R, Cr `CUSTOMER_PREPAID` R | `+R` |
-| off-book refund = balance returned R | Dr `CUSTOMER_PREPAID` R, Cr `PAYPAL_CASH` R | `−R` conditional |
-| off-book refund = goodwill R | Dr `GOODWILL_EXPENSE` R, Cr `PAYPAL_CASH` R | none |
-| off-book refund = reversal of a capture the ledger never credited R | Dr `PAYPAL_CASH` R (the unbooked capture, net of fee as PayPal reports), Dr `PAYPAL_FEES`, Cr `PAYPAL_CASH` R ... see `investigate` for the exact lines | none |
+| off-book refund = balance returned R | Dr `CUSTOMER_PREPAID` R, Cr `PAYPAL_CASH` Rn, Cr `PAYPAL_FEES` Rf if Rf > 0 | `−R` conditional |
+| off-book refund = goodwill R | Dr `GOODWILL_EXPENSE` R, Cr `PAYPAL_CASH` Rn, Cr `PAYPAL_FEES` Rf if Rf > 0 | none |
+| off-book refund R = duplicate reversal of capture C the ledger never credited (requires R = C gross) | Dr `PAYPAL_CASH` Cn, Dr `PAYPAL_FEES` Cf if Cf > 0, Cr `PAYPAL_CASH` Rn, Cr `PAYPAL_FEES` Rf if Rf > 0 | none |
+| unbooked capture C = balance (a top-up the ledger missed) | Dr `PAYPAL_CASH` Cn, Dr `PAYPAL_FEES` Cf if Cf > 0, Cr `CUSTOMER_PREPAID` C | `+C` |
+| unbooked capture C = duplicate, fully refunded by R | same lines as the duplicate reversal row | none |
+
+R = gross refund, Rn = net refund, Rf = refund fee PayPal handed back; C = gross capture,
+Cn = net capture, Cf = capture fee. All corrections are kind `CORRECTION`, ref (`break`, break id),
+so a break is corrected at most once. A duplicate reversal books the capture and its refund in one
+entry and resolves both breaks (`UNBOOKED_CAPTURE` for C and `UNBOOKED_REFUND` for R).
 
 Refund fee handling: use the amounts PayPal returns (`seller_payable_breakdown`) when
-present; otherwise treat the refund as reducing `PAYPAL_CASH` by the gross refund amount.
+present; otherwise treat the refund as reducing `PAYPAL_CASH` by the gross refund amount
+(Rf = 0, Rn = R). A capture without a fee breakdown is booked with Cf = 0, Cn = C.
 
 ## State machines
 
@@ -154,6 +162,38 @@ go negative. A draft that fails validation is shown as rejected with the reason.
 Approval posts the entry dated the next business date with `created_by` = maker and
 `approved_by` = checker, then the close is re-run.
 
+Details fixed by the `investigate` module:
+
+- Treatments by break kind. `UNBOOKED_REFUND`: `BALANCE_RETURNED`, `GOODWILL`,
+  `DUPLICATE_REVERSAL` (only when the refunded capture was not credited by a `CAPTURED`
+  top-up). `UNBOOKED_CAPTURE`: `BALANCE_RETURNED` (credit the capture to the customer's
+  balance) or `DUPLICATE_REVERSAL` (only when an open `UNBOOKED_REFUND` break refunds the
+  whole capture). `NEEDS_HUMAN` never produces an entry. Lines are in the Postings table.
+- `breaks.evidence` is read as the `RefundSnapshot` (for `UNBOOKED_REFUND`) or
+  `CaptureSnapshot` (for `UNBOOKED_CAPTURE`) record serialized to JSON with its record field
+  names. Also accepted: the same object nested under `"refund"` or `"capture"`, a refund's
+  capture embedded under `"capture"`, and PayPal's own shape (`amount.value`,
+  `seller_payable_breakdown`, `seller_receivable_breakdown`). For a refund, the refunded
+  capture is taken from the embedded capture, else the `UNBOOKED_CAPTURE` break for it,
+  else the top-up row, else `PayPalGateway.getCapture` (outside any transaction).
+- Model: property `backed.ai.model` (env `BACKED_AI_MODEL`, default `claude-opus-5-5`), one
+  structured-output call per break, explicit timeout (`backed.ai.timeout-seconds`, 120), at
+  most one retry, server-side refusal fallback on. Without `ANTHROPIC_API_KEY` the pages say
+  "AI investigator is not configured" and investigating is refused; nothing else changes.
+- A proposal stores the evidence bundle the model saw, the model output, the chosen draft,
+  the draft for the treatment it rejected (with its effect on the customer balance and the
+  shop), and the validator checklist (migration `V50__proposal_audit.sql`).
+- A valid proposal is `PENDING_APPROVAL` and its break `PROPOSED`; an invalid one is
+  `REJECTED_BY_VALIDATOR` and the break stays `OPEN`. Dismissing returns a `PROPOSED` break
+  to `OPEN`. Approval is refused for the proposal's creator, for any status other than
+  `PENDING_APPROVAL`, and for a break that is no longer `OPEN` or `PROPOSED`; it re-validates
+  against fresh data, then posts, applies the balance, resolves the break(s) and marks the
+  proposal `APPROVED` in one transaction under a row lock on the proposal, and runs
+  `CloseRunner.runClose` after commit.
+- Routes: `POST /breaks/{id}/investigate` (MAKER, checked in the controller because
+  `SecurityConfig` has no `/breaks/**` rule), `GET /proposals`, `GET /proposals/{id}`,
+  `POST /proposals/{id}/approve` (CHECKER), `POST /proposals/{id}/dismiss`.
+
 ## Users (demo, in memory)
 
 `clerk` (role CLERK: counter), `maker` (role MAKER: runs close, requests proposals),
@@ -186,7 +226,8 @@ for a refund made by hand in the PayPal dashboard).
 These are fixed by the foundation commit; module code relies on them.
 
 - Schema: the whole schema is `V1__schema.sql`; `V2__seed.sql` loads accounts, the business
-  date and three demo customers. Modules add no migrations. JSON columns (`breaks.evidence`,
+  date and three demo customers. A module that needs a column adds a migration only in its own
+  version range (`investigate`: V50 to V59). JSON columns (`breaks.evidence`,
   `proposals.ai_output`, `proposals.draft`, `day_closes.summary`, `webhook_events.payload`)
   are `text` holding JSON.
 - The journal is append-only in the database too: UPDATE and DELETE on `journal_entries` and
