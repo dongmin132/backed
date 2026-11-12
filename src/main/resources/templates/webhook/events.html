@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Webhooks', ~{::main})}">
+<body>
+<main class="container">
+    <h1>PayPal webhook events</h1>
+    <p class="muted">
+        Each event is stored once by its id and processed once. Webhooks never post to the ledger;
+        anything they mention that the ledger does not know is checked by the next
+        <a th:href="@{/close}">day close</a>.
+    </p>
+
+    <section class="card">
+        <h2>Received <span class="muted small" th:text="${total + ' in total, newest first'}">0</span></h2>
+        <p class="muted" th:if="${#lists.isEmpty(events)}">No events received yet.</p>
+        <div style="overflow-x: auto" th:unless="${#lists.isEmpty(events)}">
+            <table class="table compact">
+                <thead>
+                <tr><th>Event</th><th>Type</th><th>Resource</th><th>Received</th><th>Processed</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="e : ${events}">
+                    <td><code th:text="${e.eventId}">WH-1</code></td>
+                    <td th:text="${e.eventType}">PAYMENT.CAPTURE.COMPLETED</td>
+                    <td><code th:if="${e.resourceId != null}" th:text="${e.resourceId}">ID</code></td>
+                    <td class="muted" th:text="${@fmt.time(e.receivedAt)}">time</td>
+                    <td>
+                        <span class="badge ok" th:if="${e.processedAt != null}">Processed</span>
+                        <span class="badge watch" th:if="${e.processedAt == null}">Not processed</span>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

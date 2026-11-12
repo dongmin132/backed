@@ -139,6 +139,38 @@ For the current business date:
 Transaction Search is not used (it lags by hours in sandbox). The close reads orders,
 captures and refunds directly.
 
+Details fixed by the close module (`DayCloseService`):
+
+- Every PayPal read happens before anything is written and outside any transaction. If one
+  fails, the run is stored as `BROKEN` with the reason and no break is written.
+- The ledger side (top-ups, legs, resolved breaks, the three check figures) is read in one
+  `REPEATABLE READ` snapshot after PayPal was read.
+- Orders come from `topups.paypal_order_id`, plus the orders of captures named by
+  `PAYMENT.CAPTURE.*` webhooks that no top-up points to. A webhook capture PayPal answers 404
+  for (for example from the webhook simulator) is noted and ignored.
+- PayPal-derived cash = sum of capture net amounts (`COMPLETED`, `PARTIALLY_REFUNDED`,
+  `REFUNDED`; net, else gross minus fee, else gross) minus `COMPLETED` refunds (net from the
+  breakdown when present, else gross).
+- No break is raised for a capture whose top-up is still `CREATED` or `IN_DOUBT`, or for a
+  refund that matches a `PENDING` or `IN_DOUBT` leg (same refund id, or same capture and
+  amount); those are left to their resolvers and the day stays `BROKEN` while anything is in doubt.
+- `CLOSED` additionally requires the balance and subledger checks to pass.
+- Breaks are keyed by (kind, PayPal id), so re-running never duplicates one; a `RESOLVED` break
+  explains its PayPal object on later runs.
+- `POST /close/advance` moves the business date only if the newest run for the current date is
+  `CLOSED` and the journal has the same number of entries as when that run read it.
+
+## Webhooks
+
+`POST /webhooks/paypal` (public, no CSRF) stores the event keyed by its `id` with
+`insert ... on conflict do nothing` and processes it in the same transaction, so a repeated or
+concurrent delivery is answered 200 `duplicate` without processing. Processing never posts to
+the journal; it only reports whether the ledger knows the capture or refund. Signature
+verification through PayPal's verify-webhook-signature endpoint is off by default; set
+`backed.webhooks.verify-signature=true` and `backed.paypal.webhook-id` (or `PAYPAL_WEBHOOK_ID`)
+to turn it on. Staff see received events at `/close/webhooks` (not under `/webhooks/**`, which
+is public).
+
 ## Investigator
 
 Input per break: the PayPal refund or capture as returned by PayPal (including the
