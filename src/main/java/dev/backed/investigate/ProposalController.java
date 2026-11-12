@@ -15,9 +15,11 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -59,23 +61,42 @@ public class ProposalController {
         return "investigate/proposal";
     }
 
+    /** The day close page posts its forms with returnTo=close; only that exact value sends the person back there. */
+    static final String RETURN_TO_CLOSE = "close";
+
+    private static boolean backToClose(String returnTo) {
+        return RETURN_TO_CLOSE.equals(returnTo);
+    }
+
     @PostMapping("/breaks/{id}/investigate")
-    public String investigate(@PathVariable long id, Authentication auth, RedirectAttributes redirect) {
+    public String investigate(@PathVariable long id, @RequestParam(required = false) String returnTo,
+                              Authentication auth, RedirectAttributes redirect) {
         if (!hasRole(auth, Roles.MAKER)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only a maker can request an investigation");
         }
         try {
             long proposalId = service.investigate(id, Actors.of(auth));
             redirect.addFlashAttribute("notice", "The investigator reviewed break #" + id + ".");
-            return "redirect:/proposals/" + proposalId;
+            return backToClose(returnTo) ? "redirect:/close#break-" + id : "redirect:/proposals/" + proposalId;
         } catch (InvestigationException e) {
             redirect.addFlashAttribute("error", e.getMessage());
-            return "redirect:/proposals";
+            return backToClose(returnTo) ? "redirect:/close#break-" + id : "redirect:/proposals";
         }
     }
 
+    /** Back to the day close, on the next break that waits for this person's decision, if there is one. */
+    private String closeFor(Authentication auth) {
+        List<Break> open = breaks.findOpen();
+        return pages.latestFor(open, auth).entrySet().stream()
+                .filter(e -> e.getValue().canDecide())
+                .map(e -> "redirect:/close#break-" + e.getKey())
+                .findFirst()
+                .orElse("redirect:/close");
+    }
+
     @PostMapping("/proposals/{id}/approve")
-    public String approve(@PathVariable long id, Authentication auth, RedirectAttributes redirect) {
+    public String approve(@PathVariable long id, @RequestParam(required = false) String returnTo,
+                          Authentication auth, RedirectAttributes redirect) {
         requireProposal(id);
         try {
             ApprovalResult r = service.approve(id, Actors.of(auth));
@@ -92,11 +113,12 @@ public class ProposalController {
         } catch (InvestigationException e) {
             redirect.addFlashAttribute("error", e.getMessage());
         }
-        return "redirect:/proposals/" + id;
+        return backToClose(returnTo) ? closeFor(auth) : "redirect:/proposals/" + id;
     }
 
     @PostMapping("/proposals/{id}/dismiss")
-    public String dismiss(@PathVariable long id, Authentication auth, RedirectAttributes redirect) {
+    public String dismiss(@PathVariable long id, @RequestParam(required = false) String returnTo,
+                          Authentication auth, RedirectAttributes redirect) {
         requireProposal(id);
         try {
             service.dismiss(id, Actors.of(auth));
@@ -104,7 +126,7 @@ public class ProposalController {
         } catch (InvestigationException e) {
             redirect.addFlashAttribute("error", e.getMessage());
         }
-        return "redirect:/proposals/" + id;
+        return backToClose(returnTo) ? closeFor(auth) : "redirect:/proposals/" + id;
     }
 
     private ProposalPage page(Proposal p, Break b, Authentication auth) {

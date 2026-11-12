@@ -14,9 +14,10 @@
      proposalItem(p)    a proposal in the list
      thinking           the waiting state while a request to the investigator is in flight;
                         include it once on any page whose investigate forms carry data-investigate
-     The day report renders relay and diff for several proposals on one page, so their ids carry the proposal id,
-     and it sets inReport=true around them: diff then leads with the AI's judgement in plain words and shows the
-     code checks as one line. */-->
+     The day close renders relay and diff for several proposals on one page, so their ids carry the proposal id,
+     and it sets inReport=true around them: diff then leads with a short heading (the AI's call sits beside it on
+     that page) and shows the code checks as one line; relay puts the one action beside the steps, with
+     returnTo=close on its forms, and shows relayHint above it when the page sets one. */-->
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
 
@@ -60,7 +61,7 @@
                 <span class="relay-tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></span>
             </span>
             <span class="relay-role">Maker</span>
-            <span class="relay-detail"><strong th:text="${mk}">maker</strong> asked the investigator</span>
+            <span class="relay-detail"><strong th:text="${mk}">maker</strong> asked the AI</span>
             <span class="relay-detail" th:text="${'Prepared ' + @fmt.time(p.createdAt)}">Prepared 2026-11-13 10:31</span>
             <span class="badge relay-chip done">Done</span>
         </li>
@@ -97,7 +98,7 @@
                 <span class="badge watch relay-chip" th:unless="${page.canDecide()}">Waiting for a checker</span>
             </th:block>
 
-            <div class="relay-actions" th:if="${page.canDecide() or page.canDismiss()}">
+            <div class="relay-actions" th:if="${!(inReport != null and inReport) and (page.canDecide() or page.canDismiss())}">
                 <form th:if="${page.canDismiss()}" th:action="@{/proposals/{id}/dismiss(id=${p.id})}" method="post" class="inline">
                     <button type="submit">Dismiss</button>
                 </form>
@@ -133,8 +134,23 @@
         </li>
     </ol>
 
+    <!--/* On the day close the one action sits beside the steps, and its forms bring the person back there. */-->
+    <div class="relay-side" th:if="${inReport != null and inReport and (page.canDecide() or page.canDismiss())}">
+        <p class="relay-hint" th:if="${relayHint != null and page.canDecide()}" th:text="${relayHint}">Approving moves you on to Daniel's.</p>
+        <div class="relay-actions">
+            <form th:if="${page.canDismiss()}" th:action="@{/proposals/{id}/dismiss(id=${p.id})}" method="post" class="inline">
+                <input type="hidden" name="returnTo" value="close">
+                <button type="submit" class="fx-dismiss">Dismiss</button>
+            </form>
+            <form th:if="${page.canDecide()}" th:action="@{/proposals/{id}/approve(id=${p.id})}" method="post" class="inline">
+                <input type="hidden" name="returnTo" value="close">
+                <button type="submit" class="primary fx-approve"><svg class="btn-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>Approve and post</button>
+            </form>
+        </div>
+    </div>
+
     <p class="relay-foot" th:if="${page.canDecide()}">Approving posts the chosen entry on the next business date, with
-        <strong th:text="${p.createdBy}">maker</strong> as maker and you as checker, then re-runs the close.</p>
+        <strong th:text="${p.createdBy}">maker</strong> as maker and you as checker, then runs the close again.</p>
 </section>
 
 <!--/* ============================================================ Before and after */-->
@@ -152,15 +168,14 @@
             <h2 id="diff-title" th:text="${approved ? 'What approving changed in the books' : 'What approving changes in the books'}">What approving changes in the books</h2>
             <p class="diff-sub" th:if="${needsHuman}">No treatment fits the evidence well enough, so no entry was drafted.</p>
             <p class="diff-sub" th:unless="${needsHuman}"><span th:text="${who}">Maya Lindqvist</span>'s <span th:text="${@fmt.money(page.brk.amountCents)}">$4.00</span>
-                <span th:text="${#strings.toLowerCase(@fmt.label(page.brk.kind))}">unbooked refund</span>, booked as the investigator suggests</p>
+                <span th:text="${#strings.toLowerCase(@fmt.label(page.brk.kind))}">unbooked refund</span>, booked as the AI suggests</p>
         </div>
-        <div class="diff-heading diff-judgement" th:if="${compact}">
-            <span class="ai-chip"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/></svg>AI judgement</span>
-            <h4 class="diff-call" th:id="${'diff-title-' + p.id}"
-                th:text="${tname == 'GOODWILL' ? 'The shop paid this as an apology'
-                         : (tname == 'BALANCE_RETURNED' ? 'Part of their balance went back to them'
-                         : (tname == 'DUPLICATE_REVERSAL' ? (refund ? 'This undoes a double charge' : 'This payment came in twice')
-                         : 'Not sure, so a person should decide'))}">The shop paid this as an apology</h4>
+        <div class="diff-heading diff-compact-head" th:if="${compact}">
+            <h4 class="diff-compact-title" th:id="${'diff-title-' + p.id}"
+                th:text="${approved ? 'Approving changed your books like this' : 'Approving changes your books like this'}">Approving changes your books like this</h4>
+            <p class="diff-compact-sub" th:if="${needsHuman}">Nothing fits well enough, so no entry was drafted.</p>
+            <p class="diff-compact-sub" th:unless="${needsHuman}"
+               th:text="${'Booked as ' + (p.treatment != null ? #strings.toLowerCase(p.treatment.label()) : 'suggested') + ', as the AI suggests'}">Booked as goodwill, as the AI suggests</p>
         </div>
         <div class="diff-toggle" role="radiogroup" aria-label="Show the books after" th:if="${alt != null and page.chosen != null}">
             <input type="radio" class="dv-chosen" th:name="${compact ? 'diff-view-' + p.id : 'diff-view'}" th:id="${compact ? 'diff-view-chosen-' + p.id : 'diff-view-chosen'}" value="chosen" checked>
@@ -170,7 +185,6 @@
             <label th:for="${compact ? 'diff-view-alt-' + p.id : 'diff-view-alt'}" th:text="${alt.plan.treatment.label()}">Balance returned</label>
         </div>
     </header>
-    <p class="diff-reason" th:if="${compact and page.output != null and page.output.reasoning != null}" th:text="${page.output.reasoning}">Reasoning.</p>
 
     <!--/* The suggested treatment */-->
     <div class="diff-option diff-option-chosen">
@@ -310,7 +324,8 @@
     </span>
     <strong class="checks-line-sum" th:text="${total == 0 ? 'No code checks ran' : (passed == total ? 'All ' + total + ' code checks passed' : (total - passed) + ' of ' + total + ' code checks failed')}">All 4 code checks passed</strong>
     <span class="checks-line-items"><th:block th:each="c, ci : ${passed == total ? checks : checks.?[!ok]}"><span class="checks-line-item"
-          th:classappend="${c.ok} ? '' : 'is-bad'" th:title="${c.detail}" th:text="${c.name}">Entry balances</span><th:block
+          th:classappend="${c.ok} ? '' : 'is-bad'" th:title="${c.detail}"
+          th:text="${ci.first ? c.name : #strings.toLowerCase(#strings.substring(c.name, 0, 1)) + #strings.substring(c.name, 1)}">Entry balances</span><th:block
           th:unless="${ci.last}">, </th:block></th:block></span>
 </p>
 
@@ -333,9 +348,9 @@
 <section class="card judgement" th:fragment="judgement(page)" aria-labelledby="judgement-title"
          th:with="p=${page.proposal}, out=${page.output}">
     <div class="panel-head">
-        <h2 id="judgement-title">The investigator's reasoning</h2>
+        <h2 id="judgement-title">The AI's reasoning</h2>
     </div>
-    <p class="muted" th:if="${out == null}">No investigator output.</p>
+    <p class="muted" th:if="${out == null}">The AI gave no answer.</p>
     <th:block th:if="${out != null}">
         <div class="judgement-model">
             <span class="model-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M18.5 15.5l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z"/></svg></span>
@@ -367,7 +382,7 @@
          th:with="b=${page.brk}, quotesFound=${#lists.size(page.quotes.?[found])}, quoteTotal=${#lists.size(page.quotes)}">
     <div class="panel-head">
         <h2 id="evidence-title">Evidence</h2>
-        <span class="muted">Marked text is what the investigator quoted</span>
+        <span class="muted">Marked text is what the AI quoted</span>
     </div>
 
     <div class="evidence-grid">
@@ -412,7 +427,7 @@
         </div>
 
         <div class="evidence-quotes">
-            <h3 class="evidence-subtitle"><span>Quotes the investigator relied on</span>
+            <h3 class="evidence-subtitle"><span>Quotes the AI relied on</span>
                 <span class="diff-count" th:if="${quoteTotal > 0}" th:classappend="${quotesFound == quoteTotal} ? 'ok' : 'bad'"
                       th:text="${quotesFound + ' of ' + quoteTotal + ' found word for word'}">1 of 1 found word for word</span></h3>
             <p class="muted" th:if="${#lists.isEmpty(page.quotes)}">None.</p>
@@ -435,7 +450,7 @@
     </div>
 
     <details class="bundle-details">
-        <summary>Evidence bundle as the investigator saw it</summary>
+        <summary>Evidence bundle as the AI saw it</summary>
         <pre class="bundle"><th:block th:each="s : ${page.bundleSegments}"><mark th:if="${s.marked}" th:text="${s.text}"></mark><th:block th:unless="${s.marked}" th:text="${s.text}"></th:block></th:block></pre>
     </details>
 </section>

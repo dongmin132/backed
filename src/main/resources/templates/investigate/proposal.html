@@ -9,7 +9,7 @@
     <article class="doc" aria-labelledby="proposal-title">
         <header class="doc-head proposal-title">
             <nav class="doc-crumbs" aria-label="Back to">
-                <a th:href="@{/close}">Day report</a>
+                <a th:href="@{/close}">Day close</a>
                 <a th:href="@{/proposals}">All proposals</a>
             </nav>
             <div class="proposal-title-row">
@@ -28,7 +28,7 @@
 
         <div class="callout watch" th:if="${needsHuman}">
             <span class="callout-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 6v8M12 18.5v0.5"/></svg></span>
-            <div><strong>The investigator asked for a person to decide.</strong> It found no treatment the evidence supports
+            <div><strong>The AI asked for a person to decide.</strong> It found no treatment the evidence supports
             well enough, so no entry was drafted. Read its reasoning below, then decide by hand or investigate again.</div>
         </div>
         <div class="callout bad" th:if="${p.status.name() == 'REJECTED_BY_VALIDATOR' and !needsHuman}">

@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class ProposalWebTest extends InvestigateTestBase {
@@ -117,5 +118,43 @@ class ProposalWebTest extends InvestigateTestBase {
                 .andExpect(content().string(containsString("Rejected by the validator")))
                 .andExpect(content().string(containsString("a sentence nobody wrote")))
                 .andExpect(content().string(not(containsString("Approve and post"))));
+    }
+
+    @Test
+    void formsPostedFromTheDayCloseComeBackToIt() throws Exception {
+        Break maya = scenarios.goodwill(customerA().id());
+        Break other = scenarios.balanceReturned(customerB().id());
+        investigator.respond(output(GOODWILL, BALANCE_RETURNED, Scenarios.COLD_COFFEE_NOTE));
+
+        // Investigate from the day close: back to the same break there.
+        mvc.perform(post("/breaks/" + maya.id() + "/investigate").param("returnTo", "close")
+                        .with(user("maker").roles("MAKER")).with(csrf()))
+                .andExpect(redirectedUrl("/close#break-" + maya.id()));
+        long first = proposals.latestByBreak().get(maya.id());
+
+        // Any other value keeps the proposal page.
+        investigator.respond(output(BALANCE_RETURNED, GOODWILL, Scenarios.MOVING_NOTE));
+        MvcResult elsewhere = mvc.perform(post("/breaks/" + other.id() + "/investigate").param("returnTo", "https://example.com")
+                        .with(user("maker").roles("MAKER")).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andReturn();
+        assertThat(elsewhere.getResponse().getRedirectedUrl()).startsWith("/proposals/");
+        long second = proposals.latestByBreak().get(other.id());
+
+        // The day close page carries the field on its forms.
+        mvc.perform(get("/close").with(user("checker").roles("CHECKER")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("name=\"returnTo\" value=\"close\"")))
+                .andExpect(content().string(containsString("Approve and post")));
+
+        // Approve from the day close: on to the next break waiting for this checker.
+        mvc.perform(post("/proposals/" + first + "/approve").param("returnTo", "close")
+                        .with(user("checker").roles("CHECKER")).with(csrf()))
+                .andExpect(redirectedUrl("/close#break-" + other.id()));
+
+        // Dismiss the last one: nothing else waits, so the page itself.
+        mvc.perform(post("/proposals/" + second + "/dismiss").param("returnTo", "close")
+                        .with(user("checker").roles("CHECKER")).with(csrf()))
+                .andExpect(redirectedUrl("/close"));
     }
 }
