@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<!--/* Customer layout: no staff navigation. Used as
+  <html th:replace="~{layout/customer :: page('Title', ~{::main})}">
+*/-->
+<html lang="en" xmlns:th="http://www.thymeleaf.org" th:fragment="page(title, content)">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <title th:text="${title} + ' | Backed'">Backed</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body class="customer">
+<header class="topbar">
+    <div class="topbar-inner">
+        <span class="brand">Backed</span>
+        <span class="meta">Your prepaid balance</span>
+    </div>
+</header>
+<main th:replace="${content}">
+    Page content
+</main>
+</body>
+</html>

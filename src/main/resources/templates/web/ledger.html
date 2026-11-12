@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Ledger', ~{::main})}">
+<body>
+<main class="container">
+    <h1>Ledger</h1>
+
+    <p class="flash error" role="alert" th:unless="${#lists.isEmpty(unbalanced)}">
+        Entries that do not balance: <span th:text="${unbalanced}">[]</span>
+    </p>
+
+    <section class="card">
+        <h2>Account balances</h2>
+        <table class="table">
+            <thead>
+            <tr><th>Account</th><th>Type</th><th class="num">Debits</th><th class="num">Credits</th><th class="num">Balance</th></tr>
+            </thead>
+            <tbody>
+            <tr th:each="a : ${accounts}">
+                <td><code th:text="${a.account}">PAYPAL_CASH</code></td>
+                <td class="muted" th:text="${@fmt.label(a.account.type)}">Asset</td>
+                <td class="num" th:text="${@fmt.money(a.debitCents)}">$0.00</td>
+                <td class="num" th:text="${@fmt.money(a.creditCents)}">$0.00</td>
+                <td class="num strong" th:text="${@fmt.money(a.balanceCents)}">$0.00</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section class="card">
+        <h2>Journal <span class="muted small">newest first, last 200 entries</span></h2>
+        <p class="muted" th:if="${#lists.isEmpty(entries)}">No entries yet.</p>
+        <article class="entry" th:each="e : ${entries}">
+            <header class="entry-head">
+                <span class="entry-id" th:text="${'#' + e.id}">#1</span>
+                <span class="badge plain" th:text="${@fmt.label(e.kind)}">Spend</span>
+                <span th:text="${@fmt.date(e.businessDate)}">2026-01-01</span>
+                <span class="muted" th:text="${e.memo}">memo</span>
+                <span class="entry-by muted">
+                    by <span th:text="${e.createdBy}">maker</span>
+                    <th:block th:if="${e.approvedBy != null}">, approved by <span th:text="${e.approvedBy}">checker</span></th:block>
+                    <span th:if="${e.refType != null}" th:text="${'· ' + e.refType + ' ' + e.refId}"></span>
+                </span>
+            </header>
+            <table class="table compact">
+                <thead><tr><th>Account</th><th>Customer</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
+                <tbody>
+                <tr th:each="l : ${e.lines}">
+                    <td><code th:text="${l.account}">PAYPAL_CASH</code></td>
+                    <td th:text="${l.customerName}"></td>
+                    <td class="num" th:text="${l.debitCents > 0} ? ${@fmt.money(l.debitCents)} : ''"></td>
+                    <td class="num" th:text="${l.creditCents > 0} ? ${@fmt.money(l.creditCents)} : ''"></td>
+                </tr>
+                </tbody>
+            </table>
+        </article>
+    </section>
+</main>
+</body>
+</html>

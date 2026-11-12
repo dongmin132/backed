@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Dashboard', ~{::main})}">
+<body>
+<main class="container">
+    <h1>Dashboard</h1>
+
+    <section class="stats">
+        <div class="stat">
+            <span class="stat-label">Owed to customers</span>
+            <span class="stat-value num" th:text="${@fmt.money(owedCents)}">$0.00</span>
+            <span class="stat-note" th:if="${owedCents != prepaidControlCents}">
+                <span class="badge bad">Mismatch</span> ledger says <span class="num" th:text="${@fmt.money(prepaidControlCents)}">$0.00</span>
+            </span>
+            <span class="stat-note muted" th:unless="${owedCents != prepaidControlCents}">Matches CUSTOMER_PREPAID</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Ledger PAYPAL_CASH</span>
+            <span class="stat-value num" th:text="${@fmt.money(paypalCashCents)}">$0.00</span>
+            <span class="stat-note muted">Capture net amounts minus refunds</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Last close</span>
+            <span class="stat-value" th:if="${lastClose == null}"><span class="badge plain">Not run</span></span>
+            <th:block th:if="${lastClose != null}">
+                <span class="stat-value">
+                    <span class="badge" th:classappend="${@fmt.tone(lastClose.status)}" th:text="${@fmt.label(lastClose.status)}">Closed</span>
+                </span>
+                <span class="stat-note muted">
+                    <span th:text="${@fmt.date(lastClose.businessDate)}">2026-01-01</span>
+                    by <span th:text="${lastClose.runBy}">maker</span>
+                </span>
+            </th:block>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Needs attention</span>
+            <span class="stat-value">
+                <span class="badge" th:classappend="${openBreaks > 0} ? 'bad' : 'ok'" th:text="${openBreaks + ' open breaks'}">0 open breaks</span>
+            </span>
+            <span class="stat-note">
+                <span class="badge" th:classappend="${inDoubtTopups > 0} ? 'watch' : 'ok'" th:text="${inDoubtTopups + ' top-ups in doubt'}">0 top-ups in doubt</span>
+            </span>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Customers</h2>
+        <table class="table">
+            <thead>
+            <tr><th>Customer</th><th>Private page</th><th class="num">Balance</th></tr>
+            </thead>
+            <tbody>
+            <tr th:each="c : ${customers}">
+                <td th:text="${c.name}">Demo Customer A</td>
+                <td><a th:href="@{/c/{token}(token=${c.token})}" th:text="${'/c/' + c.token}">/c/token</a></td>
+                <td class="num" th:text="${@fmt.money(c.balanceCents)}">$0.00</td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(customers)}"><td colspan="3" class="muted">No customers yet.</td></tr>
+            </tbody>
+            <tfoot>
+            <tr><th colspan="2">Total owed</th><th class="num" th:text="${@fmt.money(owedCents)}">$0.00</th></tr>
+            </tfoot>
+        </table>
+    </section>
+</main>
+</body>
+</html>

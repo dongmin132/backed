@@ -47,8 +47,9 @@ setup and tests run against real PostgreSQL without Docker. When `BACKED_DB_URL`
 
 | package | owns |
 |---|---|
-| `config` | datasource (embedded or external), security, clock / business date |
-| `ledger` | accounts, journal posting, balances, ledger queries |
+| `config` | datasource (embedded or external), security, actor names, scheduling switch, clock |
+| `ledger` | accounts, journal posting, balances, ledger queries, business date |
+| `customer` | customers, their private-link tokens, messages to the shop |
 | `paypal` | `PayPalGateway` port, SDK adapter, fault-injection decorator, exceptions |
 | `topup` | top-up state machine, in-doubt resolution |
 | `pos` | spending a balance at the counter |
@@ -179,3 +180,32 @@ for a refund made by hand in the PayPal dashboard).
 - Same webhook delivered twice: processed once.
 - Self-approval rejected; unbalanced or mis-amounted draft rejected.
 - Close goes `BROKEN` on an off-book refund and `CLOSED` after the approved correction.
+
+## Foundation conventions
+
+These are fixed by the foundation commit; module code relies on them.
+
+- Schema: the whole schema is `V1__schema.sql`; `V2__seed.sql` loads accounts, the business
+  date and three demo customers. Modules add no migrations. JSON columns (`breaks.evidence`,
+  `proposals.ai_output`, `proposals.draft`, `day_closes.summary`, `webhook_events.payload`)
+  are `text` holding JSON.
+- The journal is append-only in the database too: UPDATE and DELETE on `journal_entries` and
+  `journal_lines` raise an error.
+- At most one journal entry per `(kind, ref_type, ref_id)`; a second posting for the same
+  business object fails with a duplicate key. Use the object's own id as `ref_id`.
+- At most one unresolved top-up (`CREATED` or `IN_DOUBT`) per customer, enforced by a partial
+  unique index. Inserting a second one fails with a duplicate key: that is the refusal.
+- Entries that touch `CUSTOMER_PREPAID` are posted with `JournalService.postAndApply`, which
+  applies the customer lines to `customer_balances` (conditional debit) in the same transaction.
+- Actor names: controllers pass `Actors.of(principal)`; schedulers, webhooks and customers use
+  `Actors.SCHEDULER`, `Actors.WEBHOOK`, `Actors.customer(id)`. Services take the actor as a
+  `String` parameter.
+- `@Scheduled` methods run only when `backed.scheduling.enabled` is true (default). Tests set it
+  to false.
+- PayPal wiring: the real SDK adapter is registered only when `backed.paypal.mode=sandbox`
+  (default) and is exposed wrapped in `FaultInjectingPayPalGateway`. Tests set
+  `backed.paypal.mode=fake` and get `FakePayPalGateway` (src/test) behind the same wrapper.
+- Tests extend `dev.backed.support.AbstractDbTest`: one Spring context, every table truncated and
+  the seed reloaded before each test, fake PayPal and fault switch reset.
+- Customer page actions (`POST /c/{token}/topup`, `/cashout`) redirect back to `/c/{token}` with a
+  flash attribute `notice` (success) or `error`.

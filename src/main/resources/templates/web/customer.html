@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/customer :: page('Your balance', ~{::main})}">
+<body>
+<main class="container narrow">
+    <div th:replace="~{layout/flash :: flash}"></div>
+
+    <section class="card balance-card">
+        <p class="muted" th:text="${customer.name}">Demo Customer A</p>
+        <p class="stat-label">Balance</p>
+        <p class="balance num" th:text="${@fmt.money(balanceCents)}">$0.00</p>
+    </section>
+
+    <section class="card">
+        <h2>Add money</h2>
+        <form th:action="@{/c/{token}/topup(token=${customer.token})}" method="post" class="row">
+            <label class="grow">Amount in USD
+                <input type="text" name="amount" inputmode="decimal" placeholder="25.00" required pattern="\$?\s*\d{1,9}(\.\d{1,2})?">
+            </label>
+            <button type="submit" class="primary">Top up</button>
+        </form>
+        <p class="muted small">Paid with your saved sandbox card through PayPal.</p>
+    </section>
+
+    <section class="card">
+        <h2>Cash out</h2>
+        <form th:action="@{/c/{token}/cashout(token=${customer.token})}" method="post" class="row">
+            <label class="grow">Amount in USD
+                <input type="text" name="amount" inputmode="decimal" th:placeholder="${@fmt.decimal(balanceCents)}" required pattern="\$?\s*\d{1,9}(\.\d{1,2})?">
+            </label>
+            <button type="submit">Cash out</button>
+        </form>
+        <p class="muted small">Refunded to the card you paid with, newest top-up first.</p>
+    </section>
+
+    <section class="card">
+        <h2>History</h2>
+        <table class="table">
+            <thead><tr><th>Date</th><th>What</th><th class="num">Amount</th></tr></thead>
+            <tbody>
+            <tr th:each="h : ${history}">
+                <td th:text="${@fmt.date(h.businessDate)}">2026-01-01</td>
+                <td>
+                    <span th:text="${@fmt.label(h.kind)}">Top-up captured</span>
+                    <span class="muted small" th:if="${h.memo != null}" th:text="${h.memo}"></span>
+                </td>
+                <td class="num" th:classappend="${h.amountCents < 0} ? 'neg' : 'pos'" th:text="${@fmt.signed(h.amountCents)}">+$0.00</td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(history)}"><td colspan="3" class="muted">Nothing yet.</td></tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section class="card" th:unless="${#lists.isEmpty(topups) and #lists.isEmpty(cashouts)}">
+        <h2>Payments</h2>
+        <table class="table">
+            <thead><tr><th>When</th><th>Type</th><th>Status</th><th class="num">Amount</th></tr></thead>
+            <tbody>
+            <tr th:each="t : ${topups}">
+                <td th:text="${@fmt.time(t.createdAt)}"></td>
+                <td>Top-up <span class="muted small" th:if="${t.failureReason != null}" th:text="${t.failureReason}"></span></td>
+                <td><span class="badge" th:classappend="${@fmt.tone(t.state)}" th:text="${@fmt.label(t.state)}">Captured</span></td>
+                <td class="num" th:text="${@fmt.money(t.amountCents)}">$0.00</td>
+            </tr>
+            <tr th:each="c : ${cashouts}">
+                <td th:text="${@fmt.time(c.createdAt)}"></td>
+                <td>Cash-out</td>
+                <td><span class="badge" th:classappend="${@fmt.tone(c.state)}" th:text="${@fmt.label(c.state)}">Settled</span></td>
+                <td class="num" th:text="${@fmt.money(c.amountCents)}">$0.00</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section class="card">
+        <h2>Message the shop</h2>
+        <form th:action="@{/c/{token}/message(token=${customer.token})}" method="post" class="stack">
+            <label>Message
+                <textarea name="body" rows="3" maxlength="2000" required placeholder="Questions about a payment or a refund"></textarea>
+            </label>
+            <button type="submit">Send</button>
+        </form>
+        <ul class="messages" th:unless="${#lists.isEmpty(messages)}">
+            <li th:each="m : ${messages}">
+                <span class="muted small" th:text="${@fmt.time(m.createdAt)}"></span>
+                <p th:text="${m.body}">Message</p>
+            </li>
+        </ul>
+    </section>
+</main>
+</body>
+</html>

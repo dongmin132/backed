@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<!--/* Staff layout. A page uses it as:
+  <html th:replace="~{layout/base :: page('Title', ~{::main})}"> ... <main>...</main> ...
+*/-->
+<html lang="en" xmlns:th="http://www.thymeleaf.org" th:fragment="page(title, content)">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="_csrf" th:if="${_csrf != null}" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:if="${_csrf != null}" th:content="${_csrf.headerName}">
+    <title th:text="${title} + ' | Backed'">Backed</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js" defer></script>
+    <script th:src="@{/js/csrf.js}" defer></script>
+</head>
+<body>
+<header class="topbar">
+    <div class="topbar-inner">
+        <a class="brand" th:href="@{/}">Backed</a>
+        <nav class="nav" aria-label="Main">
+            <a th:href="@{/}" th:classappend="${currentPath == '/'} ? 'active'">Dashboard</a>
+            <a th:href="@{/pos}" th:classappend="${#strings.startsWith(currentPath, '/pos')} ? 'active'">Counter</a>
+            <a th:href="@{/topups}" th:classappend="${#strings.startsWith(currentPath, '/topups')} ? 'active'">Top-ups</a>
+            <a th:href="@{/cashouts}" th:classappend="${#strings.startsWith(currentPath, '/cashouts')} ? 'active'">Cash-outs</a>
+            <a th:href="@{/close}" th:classappend="${#strings.startsWith(currentPath, '/close')} ? 'active'">Close</a>
+            <a th:href="@{/proposals}" th:classappend="${#strings.startsWith(currentPath, '/proposals')} ? 'active'">Proposals</a>
+            <a th:href="@{/ledger}" th:classappend="${#strings.startsWith(currentPath, '/ledger')} ? 'active'">Ledger</a>
+            <a th:href="@{/admin/faults}" th:classappend="${#strings.startsWith(currentPath, '/admin')} ? 'active'">Faults</a>
+        </nav>
+        <div class="session">
+            <span class="meta">Business date <strong th:text="${@fmt.date(businessDate)}">2026-01-01</strong></span>
+            <span class="meta" th:if="${currentUser != null}">
+                Signed in as <strong th:text="${currentUser}">maker</strong>
+                <span class="muted" th:text="${'(' + currentRoles + ')'}">(MAKER)</span>
+            </span>
+            <form th:if="${currentUser != null}" th:action="@{/logout}" method="post" class="inline">
+                <button type="submit" class="link">Sign out</button>
+            </form>
+        </div>
+    </div>
+</header>
+<main th:replace="${content}">
+    Page content
+</main>
+</body>
+</html>

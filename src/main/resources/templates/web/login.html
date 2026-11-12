@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sign in | Backed</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body class="login">
+<main class="container narrow">
+    <h1 class="brand-large">Backed</h1>
+    <p class="lead">Prepaid balances, closed against PayPal every day.</p>
+
+    <section class="card">
+        <h2>Sign in</h2>
+        <p class="flash error" role="alert" th:if="${param.error}">Wrong user name or password.</p>
+        <p class="flash notice" role="status" th:if="${param.logout}">You are signed out.</p>
+        <form th:action="@{/login}" method="post" class="stack">
+            <label>User name
+                <input type="text" name="username" autocomplete="username" required autofocus>
+            </label>
+            <label>Password
+                <input type="password" name="password" autocomplete="current-password" required>
+            </label>
+            <button type="submit" class="primary">Sign in</button>
+        </form>
+    </section>
+
+    <section class="card">
+        <h2>Demo users</h2>
+        <p class="muted">Every demo user has the password <code>demo</code>.</p>
+        <table class="table">
+            <thead><tr><th>User</th><th>Role</th><th>Can do</th></tr></thead>
+            <tbody>
+            <tr><td><code>clerk</code></td><td><span class="badge plain">Clerk</span></td><td>Spend balances at the counter</td></tr>
+            <tr><td><code>maker</code></td><td><span class="badge plain">Maker</span></td><td>Run the day close, request and prepare corrections</td></tr>
+            <tr><td><code>checker</code></td><td><span class="badge plain">Checker</span></td><td>Approve corrections prepared by the maker</td></tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+</body>
+</html>

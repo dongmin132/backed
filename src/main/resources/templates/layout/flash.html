@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<!--/* Flash messages. Include with <div th:replace="~{layout/flash :: flash}"></div>.
+     Controllers set RedirectAttributes flash attributes "notice" or "error". */-->
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="flash" class="flash-area">
+    <p class="flash notice" role="status" th:if="${notice != null}" th:text="${notice}">Done.</p>
+    <p class="flash error" role="alert" th:if="${error != null}" th:text="${error}">Something went wrong.</p>
+</div>
+</body>
+</html>
