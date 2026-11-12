@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Counter', ~{::main})}">
+<body>
+<main class="container">
+    <h1>Counter</h1>
+    <div th:replace="~{layout/flash :: flash}"></div>
+
+    <section class="card">
+        <h2>Charge a balance</h2>
+        <form th:action="@{/pos}" method="post" class="row">
+            <input type="hidden" name="requestId" th:value="${requestId}">
+            <label class="grow">Customer
+                <select name="customerId" required>
+                    <option th:each="c : ${customers}" th:value="${c.id}"
+                            th:selected="${selectedCustomerId != null and selectedCustomerId == c.id}"
+                            th:text="${c.name + ' (' + @fmt.money(c.balanceCents) + ')'}">Demo Customer A ($0.00)</option>
+                </select>
+            </label>
+            <label>Amount in USD
+                <input type="text" name="amount" inputmode="decimal" placeholder="4.50" required
+                       pattern="\$?\s*\d{1,9}(\.\d{1,2})?">
+            </label>
+            <label class="grow">Memo
+                <input type="text" name="memo" maxlength="200" placeholder="Coffee and a pastry">
+            </label>
+            <button type="submit" class="primary">Charge</button>
+        </form>
+        <p class="muted small">The balance is taken in one step that cannot go below zero. A sale the balance cannot cover is refused and nothing is written.</p>
+    </section>
+
+    <section class="card">
+        <h2>Recent sales</h2>
+        <table class="table">
+            <thead>
+            <tr><th>When</th><th>Customer</th><th>Memo</th><th>By</th><th>Status</th><th class="num">Amount</th></tr>
+            </thead>
+            <tbody>
+            <tr th:each="s : ${spends}">
+                <td th:text="${@fmt.time(s.createdAt)}">2026-01-01 10:00:00 UTC</td>
+                <td th:text="${s.customerName}">Demo Customer A</td>
+                <td th:text="${s.memo}">Coffee</td>
+                <td class="muted" th:text="${s.createdBy}">clerk</td>
+                <td><span class="badge" th:classappend="${@fmt.tone(s.state)}" th:text="${@fmt.label(s.state)}">Done</span></td>
+                <td class="num" th:text="${@fmt.money(s.amountCents)}">$0.00</td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(spends)}"><td colspan="6" class="muted">No sales yet.</td></tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+</body>
+</html>

@@ -89,7 +89,7 @@ G = gross captured, F = PayPal fee, all in cents.
 | in-doubt resolved (either way) | Dr `SUSPENSE_IN_DOUBT` G, Cr `IN_DOUBT_RECEIVABLE` G, then the captured entry if it was captured | `+G` if captured |
 | spend S | Dr `CUSTOMER_PREPAID` S, Cr `SALES_REVENUE` S | `−S` conditional |
 | cash-out requested X | Dr `CUSTOMER_PREPAID` X, Cr `CASHOUT_CLEARING` X | `−X` conditional |
-| cash-out leg refunded R | Dr `CASHOUT_CLEARING` R, Cr `PAYPAL_CASH` R | none |
+| cash-out leg refunded R | Dr `CASHOUT_CLEARING` R, Cr `PAYPAL_CASH` R (when PayPal reports a returned fee F on the refund with net + F = R: Cr `PAYPAL_CASH` net, Cr `PAYPAL_FEES` F) | none |
 | cash-out leg failed for good R | Dr `CASHOUT_CLEARING` R, Cr `CUSTOMER_PREPAID` R | `+R` |
 | off-book refund = balance returned R | Dr `CUSTOMER_PREPAID` R, Cr `PAYPAL_CASH` R | `−R` conditional |
 | off-book refund = goodwill R | Dr `GOODWILL_EXPENSE` R, Cr `PAYPAL_CASH` R | none |
@@ -120,6 +120,11 @@ the outbox). A scheduler picks up `PENDING` and `IN_DOUBT` legs with
 `FOR UPDATE SKIP LOCKED`-style claiming, calls PayPal outside the transaction, and
 records the result. Resuming never re-sends a leg that is `DONE`. Legs are allocated
 newest capture first; a leg never exceeds what is still refundable on its capture.
+A run claims a leg by setting `cashout_legs.claimed_until` (added by `V30`, the cash-out
+module's migration) and counting the attempt; results are recorded only if the attempt count
+still matches. A 5xx retries a `PENDING` leg up to `backed.cashout.max-attempts` (default 5)
+and then fails and compensates it; an `IN_DOUBT` leg is only ever settled by PayPal's answer
+to the same request id, never failed for lack of one.
 
 Error classification for every PayPal call:
 
@@ -195,7 +200,8 @@ for a refund made by hand in the PayPal dashboard).
 These are fixed by the foundation commit; module code relies on them.
 
 - Schema: the whole schema is `V1__schema.sql`; `V2__seed.sql` loads accounts, the business
-  date and three demo customers. Modules add no migrations. JSON columns (`breaks.evidence`,
+  date and three demo customers. Modules add no migrations, except within the version range
+  their brief assigns (cash-out: `V30__cashout_leg_claim.sql`). JSON columns (`breaks.evidence`,
   `proposals.ai_output`, `proposals.draft`, `day_closes.summary`, `webhook_events.payload`)
   are `text` holding JSON.
 - The journal is append-only in the database too: UPDATE and DELETE on `journal_entries` and

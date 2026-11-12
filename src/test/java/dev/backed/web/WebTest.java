@@ -110,7 +110,7 @@ class WebTest extends AbstractDbTest {
         mvc.perform(post("/proposals/1/approve").with(user("maker").roles("MAKER")).with(csrf()))
                 .andExpect(status().isForbidden());
         // Allowed by security; 404 because those modules are not built yet.
-        mvc.perform(get("/pos").with(user("clerk").roles("CLERK"))).andExpect(status().isNotFound());
+        mvc.perform(get("/pos").with(user("clerk").roles("CLERK"))).andExpect(status().isOk());
         mvc.perform(post("/proposals/1/approve").with(user("checker").roles("CHECKER")).with(csrf()))
                 .andExpect(status().isNotFound());
     }
