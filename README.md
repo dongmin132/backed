@@ -230,7 +230,9 @@ it waits for a person and the close stays BROKEN.
   duplicate reversal) and only runs when a key is exported. Run against OpenAI `gpt-6.1-sol` on
   2026-11-12, it got the expected treatment in all three, with quotes that passed the validator. The
   demo flow through the pages (sandbox top-up, refund made outside the ledger, close, investigate) was
-  also run once on OpenAI and gave a valid *balance returned* proposal. The Claude path has offline
+  also run on OpenAI: once it gave a valid *balance returned* proposal, and once, with the refund note
+  "Sorry the coffee was cold, this one is on us", a valid *goodwill* proposal that the checker approved,
+  after which the close was CLOSED and the correction was dated the next business date. The Claude path has offline
   tests only here; we had no Anthropic API credit to run it live.
 - Webhook signature verification is off by default and has not been run against PayPal.
 - Close runs are not serialised against each other, and the close reads PayPal orders one at a

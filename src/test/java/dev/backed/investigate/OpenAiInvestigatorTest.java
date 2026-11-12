@@ -234,6 +234,23 @@ class OpenAiInvestigatorTest {
     }
 
     @Test
+    void aKeyThatCannotBeSentInAHeaderIsAClearFailureThatNeverRepeatsTheKey() {
+        // The JDK rejects the header with a message that repeats its value; that must not reach a page or a log.
+        OpenAiInvestigator investigator = new OpenAiInvestigator("sk-test-first\nsecond-half-not-real", "gpt-6.1-sol",
+                "medium", baseUrl(), Duration.ofSeconds(1), Duration.ofSeconds(1), Duration.ZERO);
+
+        assertThatThrownBy(() -> investigator.investigate(BUNDLE))
+                .isInstanceOf(InvestigatorException.class)
+                .hasMessageStartingWith("OPENAI_API_KEY contains a character that cannot be sent")
+                .satisfies(e -> {
+                    for (Throwable t = e; t != null; t = t.getCause()) {
+                        assertThat(String.valueOf(t.getMessage())).doesNotContain("sk-test", "second-half");
+                    }
+                });
+        assertThat(seen).isEmpty();
+    }
+
+    @Test
     void aSlowAnswerTimesOutWithAClearMessageAndIsNotRetried() {
         answers.add(new Stub(200, completed(ANSWER), 3_000, Map.of()));
 

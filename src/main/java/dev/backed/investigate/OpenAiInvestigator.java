@@ -41,8 +41,7 @@ public class OpenAiInvestigator implements Investigator, DisposableBean {
     static final int MAX_OUTPUT_TOKENS = 8000;
     private static final Duration MAX_RETRY_WAIT = Duration.ofSeconds(10);
     private static final int MAX_ERROR_TEXT = 300;
-    private static final Pattern SECRET = Pattern.compile("\\bsk-[A-Za-z0-9_*\\-]{3,}");
-    /** 429 codes and types that mean money or a usage cap, where retrying cannot help. */
+    private static final Pattern SECRET = Pattern.compile("\\bsk-[A-Za-z0-9_*\\-]{3,}");    /** 429 codes and types that mean money or a usage cap, where retrying cannot help. */
     private static final Set<String> NOT_RETRYABLE_429 = Set.of("insufficient_quota", "credit_balance_exhausted",
             "organization_spend_limit_exceeded", "project_spend_limit_exceeded",
             "organization_usage_limit_exceeded", "billing_hard_limit_reached");
@@ -132,13 +131,19 @@ public class OpenAiInvestigator implements Investigator, DisposableBean {
     }
 
     HttpRequest request(String body) {
-        return HttpRequest.newBuilder(endpoint)
+        HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint)
                 .timeout(readTimeout)
-                .header("Authorization", "Bearer " + apiKey)
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
-                .build();
+                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
+        try {
+            builder.header("Authorization", "Bearer " + apiKey);
+        } catch (IllegalArgumentException e) {
+            // The JDK's message repeats the whole header value, key included, so it is not kept as the cause.
+            throw new InvestigatorException("OPENAI_API_KEY contains a character that cannot be sent in an HTTP"
+                    + " header, such as a line break. Check its value.");
+        }
+        return builder.build();
     }
 
     /**
