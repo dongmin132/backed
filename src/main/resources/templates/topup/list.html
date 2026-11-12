@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Top-ups', ~{::main})}">
+<body>
+<main class="container">
+    <h1>Top-ups</h1>
+    <div th:replace="~{layout/flash :: flash}"></div>
+
+    <section class="stats">
+        <div class="stat">
+            <span class="stat-label">In doubt</span>
+            <span class="stat-value">
+                <span class="badge" th:classappend="${inDoubtCount > 0} ? 'watch' : 'ok'"
+                      th:text="${inDoubtCount + ' in doubt'}">0 in doubt</span>
+            </span>
+            <span class="stat-note muted">
+                <span class="num" th:text="${@fmt.money(inDoubtCents)}">$0.00</span> sent to PayPal with no answer
+            </span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Captured</span>
+            <span class="stat-value num" th:text="${capturedCount}">0</span>
+            <span class="stat-note muted">Credited to customers</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Not charged</span>
+            <span class="stat-value num" th:text="${notChargedCount}">0</span>
+            <span class="stat-note muted">Declined, unreachable, or never captured</span>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Recent top-ups <span class="muted small">newest first</span></h2>
+        <p class="muted small">
+            Resolve re-sends the original request to PayPal with the same PayPal-Request-Id. If PayPal already
+            captured it, the same capture comes back and the customer is credited once; the day close does
+            the same for every top-up still in doubt.
+        </p>
+        <div style="overflow-x: auto">
+        <table class="table">
+            <thead>
+            <tr>
+                <th>Created</th>
+                <th>Customer</th>
+                <th>Status</th>
+                <th class="num">Amount</th>
+                <th class="num">PayPal fee</th>
+                <th class="num">Net</th>
+                <th>PayPal ids</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="t : ${topups}">
+                <td class="small" th:text="${@fmt.time(t.createdAt)}">2026-01-01 10:00:00 UTC</td>
+                <td th:text="${t.customerName}">Demo Customer A</td>
+                <td>
+                    <span class="badge" th:classappend="${@fmt.tone(t.state)}" th:text="${@fmt.label(t.state)}">Captured</span>
+                    <div class="muted small" th:if="${t.failureReason != null}" th:text="${t.failureReason}"></div>
+                </td>
+                <td class="num" th:text="${@fmt.money(t.amountCents)}">$0.00</td>
+                <td class="num" th:text="${@fmt.money(t.feeCents)}"></td>
+                <td class="num" th:text="${@fmt.money(t.netCents)}"></td>
+                <td class="small">
+                    <div th:if="${t.paypalOrderId != null}">Order <code th:text="${t.paypalOrderId}">ORDER</code></div>
+                    <div th:if="${t.paypalCaptureId != null}">Capture <code th:text="${t.paypalCaptureId}">CAPTURE</code></div>
+                    <div class="muted">Request <code th:text="${t.requestId}">topup-...</code></div>
+                </td>
+                <td>
+                    <form th:if="${t.state.name() == 'IN_DOUBT' or t.state.name() == 'CREATED'}"
+                          th:action="@{/topups/{id}/resolve(id=${t.id})}" method="post" class="inline">
+                        <button type="submit" class="primary">Resolve</button>
+                    </form>
+                </td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(topups)}"><td colspan="8" class="muted">No top-ups yet.</td></tr>
+            </tbody>
+        </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>
