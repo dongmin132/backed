@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Cash-outs', ~{::main})}">
+<body>
+<main class="container">
+    <h1>Cash-outs</h1>
+    <div th:replace="~{layout/flash :: flash}"></div>
+
+    <section class="stats">
+        <div class="stat">
+            <span class="stat-label">In flight</span>
+            <span class="stat-value num" th:text="${@fmt.money(clearingCents)}">$0.00</span>
+            <span class="stat-note muted">CASHOUT_CLEARING: taken from balances, not yet refunded</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Legs waiting</span>
+            <span class="stat-value">
+                <span class="badge" th:classappend="${counts.pending > 0} ? 'watch' : 'ok'" th:text="${counts.pending + ' pending'}">0 pending</span>
+            </span>
+            <span class="stat-note">
+                <span class="badge" th:classappend="${counts.inDoubt > 0} ? 'watch' : 'ok'" th:text="${counts.inDoubt + ' in doubt'}">0 in doubt</span>
+            </span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Legs finished</span>
+            <span class="stat-value">
+                <span class="badge ok" th:text="${counts.done + ' refunded'}">0 refunded</span>
+            </span>
+            <span class="stat-note">
+                <span class="badge" th:classappend="${counts.failed > 0} ? 'bad' : 'plain'" th:text="${counts.failed + ' failed, compensated'}">0 failed</span>
+            </span>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Refund relay</h2>
+        <form th:action="@{/cashouts/relay}" method="post" class="row">
+            <p class="muted grow" style="margin: 0">
+                The relay sends pending and in-doubt legs to PayPal every few seconds, each with its own stored
+                request id. A declined leg is not retried and its amount goes back to the balance. A 5xx is retried
+                later with the same request id. An unknown outcome is re-sent with the same request id, which
+                PayPal answers with the original refund if it already happened.
+            </p>
+            <button type="submit" class="primary">Run relay now</button>
+        </form>
+    </section>
+
+    <p class="muted" th:if="${#lists.isEmpty(cashouts)}">No cash-outs yet.</p>
+
+    <section class="card" th:each="c : ${cashouts}">
+        <h2>
+            <span th:text="${c.customerName}">Demo Customer A</span>
+            <span class="num" th:text="${@fmt.money(c.amountCents)}">$0.00</span>
+            <span class="badge" th:classappend="${@fmt.tone(c.state)}" th:text="${@fmt.label(c.state)}">Requested</span>
+        </h2>
+        <p class="muted small">
+            Requested <span th:text="${@fmt.time(c.createdAt)}">2026-01-01 10:00:00 UTC</span>
+            by <span th:text="${c.createdBy}">customer:1</span>,
+            business date <span th:text="${@fmt.date(c.businessDate)}">2026-01-01</span>,
+            request <code th:text="${c.requestId}">cashout-req</code>
+        </p>
+        <div style="overflow-x: auto">
+            <table class="table compact">
+                <thead>
+                <tr>
+                    <th>Leg</th><th>Capture</th><th class="num">Amount</th><th>Status</th><th>Request id</th>
+                    <th>PayPal refund</th><th class="num">Attempts</th><th>Last error</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="l : ${c.legs}">
+                    <td class="num" th:text="${l.legNo}">1</td>
+                    <td><code th:text="${l.captureId}">CAPTURE</code></td>
+                    <td class="num" th:text="${@fmt.money(l.amountCents)}">$0.00</td>
+                    <td>
+                        <span class="badge" th:classappend="${@fmt.tone(l.state)}" th:text="${@fmt.label(l.state)}">Pending</span>
+                        <span class="muted small" th:if="${l.claimedUntil != null and (l.state == 'PENDING' or l.state == 'IN_DOUBT')}">sending</span>
+                        <span class="muted small" th:if="${l.claimedUntil == null and l.attempts > 0 and (l.state == 'PENDING' or l.state == 'IN_DOUBT')}"
+                              th:text="${'next try after ' + @fmt.time(l.nextAttemptAt)}"></span>
+                    </td>
+                    <td><code th:text="${l.requestId}">cashout-leg-1</code></td>
+                    <td><code th:if="${l.paypalRefundId != null}" th:text="${l.paypalRefundId}">REFUND</code></td>
+                    <td class="num" th:text="${l.attempts}">0</td>
+                    <td class="small" th:text="${l.lastError}"></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>
