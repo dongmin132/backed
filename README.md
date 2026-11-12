@@ -147,7 +147,9 @@ of it, then exits with the number of failed checks):
 ./gradlew bootRun --args='--spring.profiles.active=sandbox-check'
 ```
 
-Run the tests (no network; PayPal and the model are in-memory stand-ins, PostgreSQL is real):
+Run the tests. PayPal and the model are in-memory stand-ins and PostgreSQL is real; nothing calls
+the network unless `ANTHROPIC_API_KEY` is exported in the shell, which also runs
+`LiveInvestigatorTest` against the Claude API:
 
 ```sh
 ./gradlew test
