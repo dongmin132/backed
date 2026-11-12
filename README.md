@@ -273,8 +273,9 @@ it waits for a person and the close stays BROKEN.
   model on three situations (cold coffee goodwill, moving away balance returned, charged twice
   duplicate reversal) and only runs when a key is exported. Run against OpenAI `gpt-6.1-sol` on
   2026-11-12, it got the expected treatment in all three, with quotes that passed the validator.
-  (The default model was later changed to the cheaper `gpt-5.4-mini`; set `BACKED_AI_MODEL` to use
-  another.) The
+  (The default model was later changed to the cheaper `gpt-5.4-mini`. In the run recorded for the
+  demo video it gave the expected treatment for both breaks, balance returned and goodwill, with
+  quotes that passed the validator. Set `BACKED_AI_MODEL` to use another.) The
   demo flow through the pages (sandbox top-up, refund made outside the ledger, close, investigate) was
   also run on OpenAI: once it gave a valid *balance returned* proposal, and once, with the refund note
   "Sorry the coffee was cold, this one is on us", a valid *goodwill* proposal that the checker approved,
