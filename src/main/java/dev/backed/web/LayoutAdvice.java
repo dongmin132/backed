@@ -55,7 +55,7 @@ public class LayoutAdvice {
         return i.configured() ? "" : i.notConfiguredReason();
     }
 
-    /** "OpenAI gpt-6.1-sol" while the investigator is configured, empty otherwise. */
+    /** "OpenAI gpt-5.4-mini" while the investigator is configured, empty otherwise. */
     @ModelAttribute("aiInvestigator")
     public String aiInvestigator() {
         Investigator i = investigator.getIfAvailable();

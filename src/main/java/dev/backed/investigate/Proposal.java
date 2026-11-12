@@ -24,7 +24,7 @@ public record Proposal(
         String aiProvider,
         String aiModel) {
 
-    /** "OpenAI gpt-6.1-sol", or empty for a proposal made before the model was recorded. */
+    /** "OpenAI gpt-5.4-mini", or empty for a proposal made before the model was recorded. */
     public String modelLabel() {
         return AiProvider.describe(aiProvider, aiModel);
     }

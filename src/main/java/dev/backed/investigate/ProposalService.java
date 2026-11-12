@@ -63,7 +63,7 @@ public class ProposalService {
         return investigator.notConfiguredReason();
     }
 
-    /** "OpenAI gpt-6.1-sol" while configured, empty otherwise. */
+    /** "OpenAI gpt-5.4-mini" while configured, empty otherwise. */
     public String investigatorDescription() {
         return investigator.configured() ? AiProvider.describe(investigator.provider(), investigator.model()) : "";
     }

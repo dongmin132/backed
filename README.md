@@ -100,14 +100,14 @@ rejected with a 4xx. During development it passed all five checks.
 The investigator is one model call per break, with no tools. It runs on OpenAI or on Claude:
 
 - **OpenAI** (`OpenAiInvestigator`): the Responses API called over HTTPS with the JDK HTTP client,
-  Structured Outputs with a JSON schema in strict mode, `store: false`. Default model `gpt-6.1-sol`.
+  Structured Outputs with a JSON schema in strict mode, `store: false`. Default model `gpt-5.4-mini`.
 - **Claude** (`ClaudeInvestigator`): the Messages API through the Anthropic Java SDK, structured JSON
   output. Default model `claude-opus-5-5`.
 
 Both send the same prompt and hold the model to the same JSON schema. `BACKED_AI_PROVIDER` (`openai`
 or `anthropic`) picks one; when it is not set, OpenAI is used if `OPENAI_API_KEY` is set, otherwise
-Claude if `ANTHROPIC_API_KEY` is set. `BACKED_AI_MODEL` overrides the model. The demo runs on OpenAI
-with `gpt-6.1-sol`. Every proposal records the provider and model that answered, and the proposal
+Claude if `ANTHROPIC_API_KEY` is set. `BACKED_AI_MODEL` overrides the model. The demo runs on OpenAI.
+Every proposal records the provider and model that answered, and the proposal
 pages show it.
 
 Its input is one evidence document: PayPal's refund or capture as returned by PayPal, including the
@@ -228,7 +228,9 @@ it waits for a person and the close stays BROKEN.
 - The demo story test uses a scripted stand-in for the model. `LiveInvestigatorTest` calls the real
   model on three situations (cold coffee goodwill, moving away balance returned, charged twice
   duplicate reversal) and only runs when a key is exported. Run against OpenAI `gpt-6.1-sol` on
-  2026-11-12, it got the expected treatment in all three, with quotes that passed the validator. The
+  2026-11-12, it got the expected treatment in all three, with quotes that passed the validator.
+  (The default model was later changed to the cheaper `gpt-5.4-mini`; set `BACKED_AI_MODEL` to use
+  another.) The
   demo flow through the pages (sandbox top-up, refund made outside the ledger, close, investigate) was
   also run on OpenAI: once it gave a valid *balance returned* proposal, and once, with the refund note
   "Sorry the coffee was cold, this one is on us", a valid *goodwill* proposal that the checker approved,

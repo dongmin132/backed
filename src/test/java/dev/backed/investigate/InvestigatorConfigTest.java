@@ -43,7 +43,7 @@ class InvestigatorConfigTest {
             assertThat(i).isInstanceOf(OpenAiInvestigator.class);
             assertThat(i.configured()).isTrue();
             assertThat(i.provider()).isEqualTo("openai");
-            assertThat(i.model()).isEqualTo(AiProvider.OPENAI.defaultModel()).isEqualTo("gpt-6.1-sol");
+            assertThat(i.model()).isEqualTo(AiProvider.OPENAI.defaultModel()).isEqualTo("gpt-5.4-mini");
         });
     }
 
@@ -134,7 +134,7 @@ class InvestigatorConfigTest {
 
     @Test
     void describeNamesProviderAndModel() {
-        assertThat(AiProvider.describe("openai", "gpt-6.1-sol")).isEqualTo("OpenAI gpt-6.1-sol");
+        assertThat(AiProvider.describe("openai", "gpt-5.4-mini")).isEqualTo("OpenAI gpt-5.4-mini");
         assertThat(AiProvider.describe("anthropic", "claude-opus-5-5")).isEqualTo("Claude claude-opus-5-5");
         assertThat(AiProvider.describe(null, "m")).isEqualTo("m");
         assertThat(AiProvider.describe(null, null)).isEmpty();

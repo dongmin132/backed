@@ -249,7 +249,7 @@ Details fixed by the `investigate` module:
   still starts. Both providers use the same prompt and the same strict JSON schema
   (`InvestigatorPrompt`).
 - Model: property `backed.ai.model` (env `BACKED_AI_MODEL`); when empty, the provider's default:
-  `gpt-6.1-sol` (OpenAI) or `claude-opus-5-5` (Claude). One structured-output call per break, read
+  `gpt-5.4-mini` (OpenAI) or `claude-opus-5-5` (Claude). One structured-output call per break, read
   timeout `backed.ai.timeout-seconds` (120), reasoning effort `backed.ai.effort` (medium).
 - OpenAI (`OpenAiInvestigator`): `POST /v1/responses` with `instructions`, `input`,
   `text.format` = `json_schema` with `strict: true`, `reasoning.effort`, `max_output_tokens` 8000,

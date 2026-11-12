@@ -4,7 +4,7 @@ import java.util.Locale;
 
 /** The model providers the investigator can run on. The id is what backed.ai.provider takes and what proposals store. */
 public enum AiProvider {
-    OPENAI("openai", "OpenAI", "OPENAI_API_KEY", "gpt-6.1-sol"),
+    OPENAI("openai", "OpenAI", "OPENAI_API_KEY", "gpt-5.4-mini"),
     ANTHROPIC("anthropic", "Claude", "ANTHROPIC_API_KEY", "claude-opus-5-5");
 
     private final String id;
@@ -51,7 +51,7 @@ public enum AiProvider {
         return null;
     }
 
-    /** "OpenAI gpt-6.1-sol" for the pages; an unknown provider id is shown as stored. */
+    /** "OpenAI gpt-5.4-mini" for the pages; an unknown provider id is shown as stored. */
     public static String describe(String providerId, String model) {
         AiProvider p = byId(providerId);
         String name = p != null ? p.label : providerId;

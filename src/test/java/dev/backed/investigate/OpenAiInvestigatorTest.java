@@ -87,7 +87,7 @@ class OpenAiInvestigatorTest {
         assertThat(out.rejectedAlternative()).isEqualTo(Treatment.BALANCE_RETURNED);
         assertThat(out.confidence()).isEqualTo("HIGH");
         assertThat(out.customerNote()).isEqualTo("Your balance is unchanged.");
-        assertThat(out.model()).isEqualTo("gpt-6.1-sol-answered");
+        assertThat(out.model()).isEqualTo("gpt-5.4-mini-answered");
 
         assertThat(seen).hasSize(1);
         Seen request = seen.getFirst();
@@ -98,7 +98,7 @@ class OpenAiInvestigatorTest {
         assertThat(request.header("Content-Type")).isEqualTo("application/json");
 
         JsonNode body = Json.tryParse(request.body()).orElseThrow();
-        assertThat(body.path("model").asString()).isEqualTo("gpt-6.1-sol");
+        assertThat(body.path("model").asString()).isEqualTo("gpt-5.4-mini");
         assertThat(body.path("instructions").asString()).isEqualTo(InvestigatorPrompt.SYSTEM_PROMPT);
         assertThat(body.path("input").asString()).isEqualTo(InvestigatorPrompt.userMessage(BUNDLE));
         JsonNode format = body.path("text").path("format");
@@ -125,7 +125,7 @@ class OpenAiInvestigatorTest {
     @Test
     void aRefusalIsAClearFailure() {
         answers.add(new Stub(200, """
-                {"id":"resp_1","object":"response","status":"completed","model":"gpt-6.1-sol",
+                {"id":"resp_1","object":"response","status":"completed","model":"gpt-5.4-mini",
                  "output":[{"type":"message","role":"assistant","status":"completed",
                             "content":[{"type":"refusal","refusal":"I'm sorry, I cannot assist with that request."}]}]}
                 """));
@@ -236,7 +236,7 @@ class OpenAiInvestigatorTest {
     @Test
     void aKeyThatCannotBeSentInAHeaderIsAClearFailureThatNeverRepeatsTheKey() {
         // The JDK rejects the header with a message that repeats its value; that must not reach a page or a log.
-        OpenAiInvestigator investigator = new OpenAiInvestigator("sk-test-first\nsecond-half-not-real", "gpt-6.1-sol",
+        OpenAiInvestigator investigator = new OpenAiInvestigator("sk-test-first\nsecond-half-not-real", "gpt-5.4-mini",
                 "medium", baseUrl(), Duration.ofSeconds(1), Duration.ofSeconds(1), Duration.ZERO);
 
         assertThatThrownBy(() -> investigator.investigate(BUNDLE))
@@ -268,7 +268,7 @@ class OpenAiInvestigatorTest {
         try (ServerSocket closed = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
             port = closed.getLocalPort();
         }
-        OpenAiInvestigator investigator = new OpenAiInvestigator(TEST_KEY, "gpt-6.1-sol", "medium",
+        OpenAiInvestigator investigator = new OpenAiInvestigator(TEST_KEY, "gpt-5.4-mini", "medium",
                 "http://127.0.0.1:" + port + "/v1", Duration.ofSeconds(2), Duration.ofSeconds(2), Duration.ZERO);
 
         assertThatThrownBy(() -> investigator.investigate(BUNDLE))
@@ -278,7 +278,7 @@ class OpenAiInvestigatorTest {
 
     @Test
     void withoutAKeyItIsNotConfiguredAndCallsNothing() {
-        OpenAiInvestigator investigator = new OpenAiInvestigator(" ", "gpt-6.1-sol", "medium", baseUrl(),
+        OpenAiInvestigator investigator = new OpenAiInvestigator(" ", "gpt-5.4-mini", "medium", baseUrl(),
                 Duration.ofSeconds(1), Duration.ofSeconds(1), Duration.ZERO);
 
         assertThat(investigator.configured()).isFalse();
@@ -290,7 +290,7 @@ class OpenAiInvestigatorTest {
     }
 
     private OpenAiInvestigator investigator(String effort, Duration readTimeout) {
-        return new OpenAiInvestigator(TEST_KEY, "gpt-6.1-sol", effort, baseUrl(), Duration.ofSeconds(2), readTimeout,
+        return new OpenAiInvestigator(TEST_KEY, "gpt-5.4-mini", effort, baseUrl(), Duration.ofSeconds(2), readTimeout,
                 Duration.ofMillis(10));
     }
 
@@ -304,7 +304,7 @@ class OpenAiInvestigatorTest {
         root.put("id", "resp_test");
         root.put("object", "response");
         root.put("status", "completed");
-        root.put("model", "gpt-6.1-sol-answered");
+        root.put("model", "gpt-5.4-mini-answered");
         var output = root.putArray("output");
         output.addObject().put("type", "reasoning").put("id", "rs_1").putArray("summary");
         var message = output.addObject();

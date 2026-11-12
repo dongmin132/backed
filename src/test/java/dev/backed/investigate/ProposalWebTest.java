@@ -94,15 +94,15 @@ class ProposalWebTest extends InvestigateTestBase {
         Break b = scenarios.goodwill(customerA().id());
         investigator.respond(output(GOODWILL, BALANCE_RETURNED, Scenarios.COLD_COFFEE_NOTE));
         long id = service.investigate(b.id(), "maker");
-        jdbc.sql("update proposals set ai_provider = 'openai', ai_model = 'gpt-6.1-sol' where id = :id")
+        jdbc.sql("update proposals set ai_provider = 'openai', ai_model = 'gpt-5.4-mini' where id = :id")
                 .param("id", id).update();
 
         mvc.perform(get("/proposals/" + id).with(user("checker").roles("CHECKER")))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("OpenAI gpt-6.1-sol")));
+                .andExpect(content().string(containsString("OpenAI gpt-5.4-mini")));
         mvc.perform(get("/proposals").with(user("checker").roles("CHECKER")))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("OpenAI gpt-6.1-sol")))
+                .andExpect(content().string(containsString("OpenAI gpt-5.4-mini")))
                 .andExpect(content().string(containsString("Investigator: stub.")));
     }
 
