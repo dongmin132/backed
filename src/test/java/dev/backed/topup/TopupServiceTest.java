@@ -1,5 +1,8 @@
 package dev.backed.topup;
 
+import dev.backed.close.CloseOutcome;
+import dev.backed.close.CloseStatus;
+import dev.backed.close.DayCloseService;
 import dev.backed.customer.Customers;
 import dev.backed.ledger.Account;
 import dev.backed.ledger.BalanceService;
@@ -50,6 +53,8 @@ class TopupServiceTest extends AbstractDbTest {
     PayPalGateway gateway;
     @Autowired
     BusinessDay businessDay;
+    @Autowired
+    DayCloseService close;
 
     @Test
     void capturedTopUpCreditsGrossAndBooksPayPalFee() {
@@ -164,7 +169,7 @@ class TopupServiceTest extends AbstractDbTest {
     @Test
     void paypalUnreachableOnFirstAttemptChargesNothingAndDoesNotBlock() {
         long a = customerA().id();
-        fakePayPal.failNextCapture(Failure.UNAVAILABLE, Timing.BEFORE_EFFECT);
+        fakePayPal.failNextCapture(Failure.UNREACHABLE, Timing.BEFORE_EFFECT);
 
         Topup t = service.topUp(a, 2_500, "customer:" + a);
 
@@ -172,6 +177,109 @@ class TopupServiceTest extends AbstractDbTest {
         assertThat(t.failureReason()).contains("could not be reached").contains("Nothing was charged");
         assertThat(jdbc.sql("select count(*) from journal_entries").query(Long.class).single()).isZero();
         assertThat(service.topUp(a, 2_500, "customer:" + a).state()).isEqualTo(TopupState.CAPTURED);
+        assertLedgerConsistent();
+    }
+
+    /**
+     * PayPal captures on the first attempt but answers 503. A 5xx does not prove nothing was charged,
+     * so the top-up is IN_DOUBT, a second top-up is refused, and resolving credits the one capture.
+     */
+    @Test
+    void a5xxAfterTheCaptureTookEffectIsInDoubtAndBlocksASecondCharge() {
+        long a = customerA().id();
+        fakePayPal.failNextCapture(Failure.UNAVAILABLE, Timing.AFTER_EFFECT);
+
+        Topup first = service.topUp(a, 5_000, "customer:" + a);
+
+        assertThat(first.state()).isEqualTo(TopupState.IN_DOUBT);
+        assertThat(first.failureReason()).doesNotContain("Nothing was charged");
+        assertThatThrownBy(() -> service.topUp(a, 5_000, "customer:" + a)).isInstanceOf(TopupRefusedException.class);
+        assertThat(fakePayPal.captureCount()).isEqualTo(1);
+        assertLedgerConsistent();
+
+        CloseOutcome outcome = close.runClose("maker");
+
+        assertThat(topups.findById(first.id()).orElseThrow().state()).isEqualTo(TopupState.CAPTURED);
+        assertThat(fakePayPal.captureCount()).isEqualTo(1);
+        assertThat(fakePayPal.captureCalls()).allSatisfy(c -> assertThat(c.requestId()).isEqualTo(first.requestId()));
+        assertThat(balanceOf(a)).isEqualTo(5_000);
+        assertThat(outcome.status()).isEqualTo(CloseStatus.CLOSED);
+        assertLedgerConsistent();
+    }
+
+    @Test
+    void a5xxThatDidNotTakeEffectIsInDoubtAndTheResendCapturesOnce() {
+        long a = customerA().id();
+        fakePayPal.failNextCapture(Failure.UNAVAILABLE, Timing.BEFORE_EFFECT);
+
+        Topup t = service.topUp(a, 2_500, "customer:" + a);
+        assertThat(t.state()).isEqualTo(TopupState.IN_DOUBT);
+        assertThat(fakePayPal.captureCount()).isZero();
+
+        assertThat(service.resolve(t.id(), "maker").state()).isEqualTo(TopupState.CAPTURED);
+        assertThat(fakePayPal.captureCount()).isEqualTo(1);
+        assertThat(balanceOf(a)).isEqualTo(2_500);
+        assertLedgerConsistent();
+    }
+
+    /** The order was created and left APPROVED, then the separate capture call failed with a 5xx. */
+    @Test
+    void failedCaptureCallKeepsTheOrderIdSoResolveFindsTheSameOrder() {
+        long a = customerA().id();
+        fakePayPal.failNextCaptureCallAfterOrderCreated(Failure.UNAVAILABLE);
+
+        Topup t = service.topUp(a, 2_500, "customer:" + a);
+
+        assertThat(t.state()).isEqualTo(TopupState.IN_DOUBT);
+        assertThat(t.paypalOrderId()).as("stored before the capture call").isNotNull();
+        assertThat(fakePayPal.captureCount()).isZero();
+
+        Topup resolved = service.resolve(t.id(), "maker");
+
+        assertThat(resolved.state()).isEqualTo(TopupState.CAPTURED);
+        assertThat(resolved.paypalOrderId()).isEqualTo(t.paypalOrderId());
+        assertThat(fakePayPal.captureCount()).isEqualTo(1);
+        assertThat(fakePayPal.captureCalls()).allSatisfy(c -> assertThat(c.requestId()).isEqualTo(t.requestId()));
+        assertThat(balanceOf(a)).isEqualTo(2_500);
+        assertLedgerConsistent();
+    }
+
+    /** PayPal keeps request ids for about 6 hours; past the window a re-send could charge again. */
+    @Test
+    void inDoubtTopUpOlderThanTheResendWindowIsNotResentAndKeepsTheDayBroken() {
+        long a = customerA().id();
+        fakePayPal.failNextCapture(Failure.UNKNOWN, Timing.BEFORE_EFFECT);
+        Topup t = service.topUp(a, 2_500, "customer:" + a);
+        jdbc.sql("update topups set created_at = now() - interval '6 hours' where id = :id").param("id", t.id()).update();
+
+        Topup still = service.resolve(t.id(), "maker");
+        CloseOutcome outcome = close.runClose("maker");
+
+        assertThat(still.state()).isEqualTo(TopupState.IN_DOUBT);
+        assertThat(still.failureReason()).contains("Needs a person").contains(t.requestId());
+        assertThat(fakePayPal.captureCalls()).as("only the first attempt reached the gateway").hasSize(1);
+        assertThat(fakePayPal.captureCount()).isZero();
+        assertThat(outcome.status()).isEqualTo(CloseStatus.BROKEN);
+        assertThat(outcome.inDoubtCount()).isEqualTo(1);
+        assertLedgerConsistent();
+    }
+
+    @Test
+    void scheduledResolverLeavesFreshInDoubtTopUpsForAPersonThenSettlesThem() {
+        long a = customerA().id();
+        faults.arm(Fault.DROP_NEXT_CAPTURE_RESPONSE);
+        Topup t = service.topUp(a, 2_500, "customer:" + a);
+
+        service.scheduledResolve();
+        assertThat(topups.findById(t.id()).orElseThrow().state()).isEqualTo(TopupState.IN_DOUBT);
+
+        jdbc.sql("update topups set updated_at = now() - interval '11 minutes' where id = :id").param("id", t.id()).update();
+        service.scheduledResolve();
+
+        Topup resolved = topups.findById(t.id()).orElseThrow();
+        assertThat(resolved.state()).isEqualTo(TopupState.CAPTURED);
+        assertThat(fakePayPal.captureCount()).isEqualTo(1);
+        assertThat(balanceOf(a)).isEqualTo(2_500);
         assertLedgerConsistent();
     }
 

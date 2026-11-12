@@ -1,7 +1,10 @@
 package dev.backed.web;
 
+import dev.backed.investigate.Investigator;
 import dev.backed.ledger.BusinessDay;
+import dev.backed.paypal.PayPalGateway;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -10,14 +13,34 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import java.time.LocalDate;
 import java.util.stream.Collectors;
 
-/** Values every page's layout needs: who is signed in, their roles, the business date, the current path. */
+/**
+ * Values every page's layout needs: who is signed in, their roles, the business date, the current
+ * path, and whether PayPal and the AI investigator are configured.
+ */
 @ControllerAdvice
 public class LayoutAdvice {
 
     private final BusinessDay businessDay;
+    private final ObjectProvider<PayPalGateway> paypal;
+    private final ObjectProvider<Investigator> investigator;
 
-    public LayoutAdvice(BusinessDay businessDay) {
+    public LayoutAdvice(BusinessDay businessDay, ObjectProvider<PayPalGateway> paypal,
+                        ObjectProvider<Investigator> investigator) {
         this.businessDay = businessDay;
+        this.paypal = paypal;
+        this.investigator = investigator;
+    }
+
+    @ModelAttribute("paypalConfigured")
+    public boolean paypalConfigured() {
+        PayPalGateway gateway = paypal.getIfAvailable();
+        return gateway != null && gateway.configured();
+    }
+
+    @ModelAttribute("aiConfigured")
+    public boolean aiConfigured() {
+        Investigator i = investigator.getIfAvailable();
+        return i != null && i.configured();
     }
 
     @ModelAttribute("currentUser")

@@ -43,10 +43,12 @@ public class SecurityConfig {
                         .requestMatchers("/c/**", "/webhooks/**", "/login", "/error",
                                 "/css/**", "/js/**", "/img/**", "/favicon.ico", "/actuator/health").permitAll()
                         .requestMatchers("/pos", "/pos/**").hasAnyRole(CLERK, MAKER)
-                        .requestMatchers(HttpMethod.POST, "/proposals/*/approve").hasRole(CHECKER)
+                        .requestMatchers(HttpMethod.POST, "/proposals/*/approve", "/proposals/*/dismiss").hasRole(CHECKER)
                         .requestMatchers("/proposals", "/proposals/**").hasAnyRole(MAKER, CHECKER)
                         .requestMatchers(HttpMethod.POST, "/breaks/*/investigate").hasRole(MAKER)
                         .requestMatchers("/admin", "/admin/**").hasRole(MAKER)
+                        .requestMatchers(HttpMethod.POST, "/close/run", "/close/advance", "/topups/*/resolve",
+                                "/cashouts/relay").hasRole(MAKER)
                         .requestMatchers("/close", "/close/**", "/topups", "/topups/**", "/cashouts", "/cashouts/**")
                         .hasAnyRole(MAKER, CHECKER)
                         .anyRequest().authenticated())

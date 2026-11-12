@@ -26,11 +26,12 @@ public class FaultInjectingPayPalGateway implements PayPalGateway {
     }
 
     @Override
-    public CaptureResult captureCard(String requestId, long amountCents, String customId, TestCard card) {
+    public CaptureResult captureCard(String requestId, long amountCents, String customId, TestCard card,
+                                     OrderCreated onOrderCreated) {
         boolean drop = faults.consume(FaultSwitch.Fault.DROP_NEXT_CAPTURE_RESPONSE);
         CaptureResult result;
         try {
-            result = delegate.captureCard(requestId, amountCents, customId, card);
+            result = delegate.captureCard(requestId, amountCents, customId, card, onOrderCreated);
         } catch (RuntimeException e) {
             if (drop) {
                 log.warn("FAULT INJECTED: drop-capture-response was armed for request {}, but PayPal failed the "
@@ -70,5 +71,10 @@ public class FaultInjectingPayPalGateway implements PayPalGateway {
     @Override
     public CaptureSnapshot getCapture(String captureId) {
         return delegate.getCapture(captureId);
+    }
+
+    @Override
+    public boolean configured() {
+        return delegate.configured();
     }
 }

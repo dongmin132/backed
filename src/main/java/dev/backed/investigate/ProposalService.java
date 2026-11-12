@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -71,7 +72,9 @@ public class ProposalService {
                 .orElseThrow(() -> new InvestigationException("Break #" + breakId + " does not exist."));
         if (b.status() != BreakStatus.OPEN) {
             throw new InvestigationException("Break #" + breakId + " is " + b.status().name().toLowerCase()
-                    + (b.status() == BreakStatus.PROPOSED ? "; dismiss its pending proposal before investigating again." : "."));
+                    + (b.status() == BreakStatus.PROPOSED
+                    ? "; a checker must approve or dismiss its pending proposal before it can be investigated again."
+                    : "."));
         }
         EvidenceBundle bundle = bundles.build(b);
         InvestigatorOutput output;
@@ -150,16 +153,24 @@ public class ProposalService {
                 if (locked.status() != ProposalStatus.PENDING_APPROVAL) {
                     throw new InvestigationException("Proposal #" + proposalId + " is already " + label(locked.status()) + ".");
                 }
+                // Every break this entry explains is locked and re-checked here: the checks above ran without
+                // locks, and another approval may have booked the same refund or capture since.
+                List<Long> explained = new ArrayList<>(List.of(b.id()));
+                if (plan.alsoResolves() != null) {
+                    explained.add(breaks.insertIfAbsent(plan.alsoResolves()).id());
+                }
+                for (Break current : breaks.lockAll(explained)) {
+                    if (!EvidenceBundleBuilder.isOpen(current)) {
+                        throw new InvestigationException("Break #" + current.id() + " was resolved by another approval"
+                                + " while this one was waiting. Nothing was posted.");
+                    }
+                }
                 long entry = journal.postAndApply(plan.toJournalDraft(locked.createdBy())
                         .withBusinessDate(entryDate)
                         .withApprovedBy(checker));
-                if (!breaks.markResolved(b.id(), entry)) {
-                    throw new InvestigationException("Break #" + b.id() + " was resolved by someone else.");
-                }
-                if (plan.alsoResolves() != null) {
-                    Break linked = breaks.insertIfAbsent(plan.alsoResolves());
-                    if (linked.status() != BreakStatus.RESOLVED) {
-                        breaks.markResolved(linked.id(), entry);
+                for (long id : explained) {
+                    if (!breaks.markResolved(id, entry)) {
+                        throw new InvestigationException("Break #" + id + " was resolved by someone else.");
                     }
                 }
                 if (!proposals.markApproved(proposalId, checker, entry)) {

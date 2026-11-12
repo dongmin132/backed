@@ -6,7 +6,9 @@ import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Repository
@@ -57,6 +59,16 @@ public class ProposalRepository {
                 .param("checks", validationChecks)
                 .query(Long.class)
                 .single();
+    }
+
+    /** The id of the proposal waiting for approval on each of the given breaks. */
+    public Map<Long, Long> pendingByBreak() {
+        Map<Long, Long> out = new HashMap<>();
+        jdbc.sql("select break_id, max(id) as id from proposals where status = 'PENDING_APPROVAL' group by break_id")
+                .query((ResultSet rs) -> {
+                    out.put(rs.getLong("break_id"), rs.getLong("id"));
+                });
+        return out;
     }
 
     public Optional<Proposal> findById(long id) {

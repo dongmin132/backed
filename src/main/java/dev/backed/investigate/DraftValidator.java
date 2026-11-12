@@ -88,7 +88,7 @@ public final class DraftValidator {
     private static ValidationCheck breakOpen(DraftContext ctx, Stage stage) {
         BreakStatus s = ctx.brk().status();
         boolean ok = stage == Stage.PROPOSE ? s == BreakStatus.OPEN : s == BreakStatus.OPEN || s == BreakStatus.PROPOSED;
-        return new ValidationCheck(BREAK_OPEN, ok, "Break #" + ctx.brk().id() + " is " + s);
+        return new ValidationCheck(BREAK_OPEN, ok, "Break #" + ctx.brk().id() + " is " + s.name().toLowerCase());
     }
 
     private static ValidationCheck amounts(DraftContext ctx, DraftPlan plan) {

@@ -127,6 +127,25 @@ class SdkPayPalGatewayTest {
     }
 
     @Test
+    void approvedOrderIdIsReportedBeforeTheCaptureCallThatFailsWith5xx() {
+        routes.put("POST /v2/checkout/orders", new Stub(201, """
+                {"id":"ORDER-1","status":"APPROVED","intent":"CAPTURE","purchase_units":[{"reference_id":"default",
+                 "custom_id":"topup-1"}],"links":[]}
+                """, 0));
+        routes.put("POST /v2/checkout/orders/ORDER-1/capture", new Stub(503,
+                "{\"name\":\"SERVICE_UNAVAILABLE\",\"message\":\"Try later\",\"debug_id\":\"dbg-503\"}", 0));
+        List<String> reported = new CopyOnWriteArrayList<>();
+
+        assertThatThrownBy(() -> gateway(Duration.ofSeconds(5)).captureCard("req-1", 2_500, "t", CARD, reported::add))
+                .isInstanceOfSatisfying(PayPalUnavailableException.class, e -> {
+                    assertThat(e.httpStatus()).isEqualTo(503);
+                    assertThat(e.reachedPayPal()).isTrue();
+                });
+        assertThat(reported).containsExactly("ORDER-1");
+        assertThat(only("POST /v2/checkout/orders/ORDER-1/capture").header("PayPal-Request-Id")).isEqualTo("req-1-capture");
+    }
+
+    @Test
     void readTimeoutOnAWriteIsOutcomeUnknownAndIsNotRetried() {
         routes.put("POST /v2/checkout/orders", new Stub(201, completedOrder("COMPLETED"), 1_500));
 
@@ -153,7 +172,8 @@ class SdkPayPalGatewayTest {
                 http(Duration.ofSeconds(2), closedPort), Environment.SANDBOX);
 
         assertThatThrownBy(() -> gateway.captureCard("req-1", 2_500, "t", CARD))
-                .isInstanceOf(PayPalUnavailableException.class);
+                .isInstanceOfSatisfying(PayPalUnavailableException.class,
+                        e -> assertThat(e.reachedPayPal()).as("nothing reached PayPal").isFalse());
     }
 
     @Test

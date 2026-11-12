@@ -108,8 +108,9 @@ history, their messages to the shop, their top-ups, their balance and any other 
 | Code (`DraftBuilder`, `DraftValidator`) | The journal lines, from the treatment and PayPal's amounts. Then a checklist: the break is still open, the entry balances, the amounts equal PayPal's (recomputed independently), only the accounts allowed for that treatment are used, every quote is a verbatim substring of the evidence, the customer's balance would not go below zero, and any dollar amount in the customer note appears in the evidence. A draft that fails is stored as rejected with the reasons. |
 | A person | The `maker` requests the investigation. A different user, the `checker`, approves it. The server rejects self-approval, re-validates against fresh data at approval time, and posts the entry once even if two approvals race. The close then runs again. |
 
-Without `ANTHROPIC_API_KEY` everything else works and the proposal pages say the investigator is
-not configured.
+Without `ANTHROPIC_API_KEY` everything else works; every staff page shows a banner saying the
+investigator is not configured, and the Investigate buttons are hidden. Missing PayPal credentials get
+the same kind of banner.
 
 ## Run it
 
@@ -130,8 +131,10 @@ Open <http://localhost:8080>. Demo logins, password `demo` for all:
 | user | role | can |
 |---|---|---|
 | `clerk` | counter | charge balances at the counter |
-| `maker` | operations | top-ups, cash-outs, run the close, request investigations, demo faults |
-| `checker` | approver | approve or dismiss proposals |
+| `maker` | operations | resolve top-ups, run the cash-out relay, run the close and advance the date, request investigations, demo faults, the counter |
+| `checker` | approver | approve or dismiss proposals; read every staff page |
+
+The server enforces these per route, and pages hide the buttons a role cannot use.
 
 Customer pages (no login): `/c/demo-a-7f3k9q2m`, `/c/demo-b-4p8w1x6z`, `/c/demo-c-9h2n5r3t`. The
 dashboard links to them.
@@ -167,27 +170,35 @@ All tests run against a real PostgreSQL.
 | A balance never goes below zero: 20 threads spending $1 from $10 give exactly 10 sales, and the ledger still balances | `BalanceServiceTest`, `SpendServiceTest` |
 | Every journal entry balances, at most one entry per business event, and the journal is append-only in the database | `JournalServiceTest` |
 | A capture whose response was lost is captured once, re-sent with the same request id, and credited once | `TopupServiceTest`, `TopupWebTest`, `FakePayPalGatewayTest` |
+| A 5xx on a top-up is in doubt, not "nothing charged", so the customer cannot be charged twice; a failed capture call keeps its order id | `TopupServiceTest`, `SdkPayPalGatewayTest` |
+| An in-doubt top-up older than 5 hours is never re-sent (PayPal forgets request ids after about 6), and a scheduler settles them well before | `TopupServiceTest` |
 | A new top-up is refused while one for the same customer is in doubt | `TopupServiceTest`, `TopupWebTest` |
 | A cash-out across three captures where leg 2 gets a 5xx: on resume only leg 2 is sent again, with its original request id | `CashoutTest` |
 | A 4xx on a refund is never retried; the leg fails and the balance is credited back | `CashoutTest` |
 | A cash-out leg is never sent twice, even with concurrent relay runs, and an in-doubt leg is never written off for lack of an answer | `CashoutTest` |
+| A leg whose refund may exist (a 5xx after the refund, a crash before recording it, a 4xx on an in-doubt re-send) is never credited back to the balance | `CashoutTest` |
 | The same webhook delivered twice, or concurrently, is processed once | `WebhookTest` |
 | An off-book refund makes the close BROKEN with one break; the approved correction makes it CLOSED | `DayCloseServiceTest`, `DemoStoryTest` |
 | A draft with a quote not in the evidence, an amount different from PayPal's, or a balance that would go negative is rejected | `InvestigationTest` |
-| Self-approval is rejected, and two simultaneous approvals post one entry | `ApprovalTest`, `ProposalWebTest` |
+| Self-approval is rejected, two simultaneous approvals post one entry, and two approvals that book the same refund cannot both post | `ApprovalTest`, `ProposalWebTest`, `RelatedApprovalRaceTest` |
+| A typed amount with a decimal comma ("4,50") is refused instead of read as $450.00 | `MoneyTest` |
 | The PayPal adapter sends the request id, maps PayPal's errors as in the table below, and makes exactly one request per call | `SdkPayPalGatewayTest` (against a local stub, offline) |
 | The whole demo story works through the web routes | `DemoStoryTest` |
 
 ## Error classification
 
-Every PayPal call ends in one of four outcomes.
+Every PayPal call ends in one of five outcomes.
 
 | PayPal answer | Meaning | Top-up | Cash-out leg | Day close |
 |---|---|---|---|---|
 | 2xx | done | `CAPTURED` and booked | `DONE` and booked | uses the data |
-| 4xx business error (for example `INSTRUMENT_DECLINED`, `REFUND_AMOUNT_EXCEEDED`) | will never succeed | `DECLINED`, nothing booked | `FAILED` at once, balance credited back | (404 on a read: the object does not exist) |
-| 5xx, 408, 409, 429, connection refused, DNS or TLS failure | not done | first attempt: `DECLINED`, nothing charged, customer may try again; while resolving: stays `IN_DOUBT` | stays `PENDING` and is retried later with the same request id; after 5 attempts `FAILED` and credited back. A leg already `IN_DOUBT` stays `IN_DOUBT` | the run is recorded as BROKEN with the reason; no breaks are written |
+| 4xx business error (for example `INSTRUMENT_DECLINED`, `REFUND_AMOUNT_EXCEEDED`) | will never succeed | `DECLINED`, nothing booked (while resolving: `NOT_CAPTURED`) | a `PENDING` leg is `FAILED` at once and credited back; an `IN_DOUBT` leg stays `IN_DOUBT`, because its first request may have refunded | (404 on a read: the object does not exist) |
+| connection refused, DNS or TLS failure, no OAuth token | not sent | first attempt: `DECLINED`, nothing charged, customer may try again; while resolving: stays `IN_DOUBT` | stays `PENDING`, retried later with the same request id | the run is recorded as BROKEN with the reason; no breaks are written |
+| 5xx, 408, 409, 429 | probably not done, not proven | `IN_DOUBT`, resolved with the same request id; a second top-up is refused meanwhile | stays `PENDING` and is retried with the same request id; after 5 attempts `IN_DOUBT`, never credited back | as above |
 | read timeout, or connection dropped during a write | outcome unknown | `IN_DOUBT`, resolved by re-sending the same request id | `IN_DOUBT`, re-sent with the same request id | (on reads, treated as not done) |
+
+PayPal keeps a request id for about 6 hours, so an in-doubt top-up older than 5 hours is not re-sent:
+it waits for a person and the close stays BROKEN.
 
 ## Limits
 

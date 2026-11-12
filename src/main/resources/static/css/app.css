@@ -173,7 +173,20 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 /* Flash */
 .flash { padding: 10px 14px; border-radius: 6px; margin: 0 0 var(--space); }
 .flash.notice { background: var(--ok-bg); color: var(--ok-text); }
+.flash.pending { background: var(--watch-bg); color: var(--watch-text); }
 .flash.error { background: var(--bad-bg); color: var(--bad-text); }
+
+/* Configuration banner */
+.config-banner { background: var(--watch-bg); color: var(--watch-text); border-bottom: 1px solid #f0dca8; font-size: 0.9rem; }
+.config-banner-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 8px var(--space);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.config-banner code { background: rgba(255, 255, 255, 0.6); }
 
 /* Customer page */
 .balance-card { text-align: center; }

@@ -35,12 +35,14 @@ import java.util.function.Supplier;
  * Sends cash-out legs to PayPal. A run claims legs in a short transaction, calls PayPal with no
  * transaction open, then records each result in its own transaction.
  *
- * <p>Classification: a refund is recorded as DONE and booked; a decline (4xx) fails the leg at once
- * and gives the money back to the balance; 5xx leaves the leg waiting with a growing delay until
- * {@code backed.cashout.max-attempts}, then fails and compensates it; an unknown outcome marks the
- * leg IN_DOUBT and the next run re-sends the same request id, which PayPal answers with the original
- * refund if it happened. A leg that was ever IN_DOUBT is never failed for lack of answers, because
- * its first request may have been refunded.
+ * <p>Classification: a refund is recorded as DONE and booked; a decline (4xx) of a PENDING leg fails
+ * it at once and gives the money back to the balance; 5xx leaves the leg waiting with a growing delay
+ * until {@code backed.cashout.max-attempts}, then marks it IN_DOUBT, because a 5xx does not prove the
+ * refund did not happen; an unknown outcome marks the leg IN_DOUBT and the next run re-sends the same
+ * request id, which PayPal answers with the original refund if it happened. A leg whose previous claim
+ * expired without a recorded result is IN_DOUBT too. An IN_DOUBT leg is never failed or compensated:
+ * only a refund from PayPal for its request id settles it, and a 4xx on the re-send leaves it for a
+ * person to check.
  *
  * <p>The relay never reads the security context; it books everything as {@link #ACTOR}.
  */
@@ -119,6 +121,10 @@ public class CashoutRelay {
         List<ClaimedLeg> legs = tx.execute(status -> jdbc.sql("""
                         update cashout_legs l
                            set attempts = l.attempts + 1,
+                               state = case when l.claimed_until is not null then 'IN_DOUBT' else l.state end,
+                               last_error = case when l.claimed_until is not null
+                                                 then 'The previous attempt never recorded its result; it may have refunded.'
+                                                 else l.last_error end,
                                claimed_until = now() + :leaseMillis * interval '1 millisecond',
                                updated_at = now()
                           from (select id from cashout_legs
@@ -150,6 +156,13 @@ public class CashoutRelay {
             refund = paypal.refundCapture(leg.requestId(), leg.captureId(), leg.amountCents(),
                     CashoutService.NOTE_TO_PAYER);
         } catch (PayPalDeclinedException e) {
+            if ("IN_DOUBT".equals(leg.state())) {
+                // A 4xx on the re-send says nothing about the first request, which may have refunded.
+                return reschedule(leg, "IN_DOUBT", "PayPal refused the re-send (" + describe(e) + "). The first "
+                                + "request may already have refunded, so the balance is not returned. Check capture "
+                                + leg.captureId() + " at PayPal if this persists.",
+                        retryDelay.multipliedBy(leg.attempts()), LegOutcome.IN_DOUBT);
+            }
             return recordFailed(leg, "Declined by PayPal: " + describe(e));
         } catch (PayPalUnavailableException e) {
             return recordUnavailable(leg, describe(e));
@@ -172,12 +185,11 @@ public class CashoutRelay {
                             update cashout_legs
                                set state = 'DONE', paypal_refund_id = :refundId, last_error = :note,
                                    claimed_until = null, updated_at = now()
-                             where id = :id and attempts = :attempts and state in ('PENDING', 'IN_DOUBT')
+                             where id = :id and state in ('PENDING', 'IN_DOUBT')
                             """)
                     .param("refundId", refund.refundId())
                     .param("note", refund.completed() ? null : "PayPal refund status " + refund.status())
                     .param("id", leg.id())
-                    .param("attempts", leg.attempts())
                     .update();
             if (rows == 0) {
                 return LegOutcome.SKIPPED;
@@ -231,7 +243,10 @@ public class CashoutRelay {
 
     private LegOutcome recordUnavailable(ClaimedLeg leg, String reason) {
         if ("PENDING".equals(leg.state()) && leg.attempts() >= maxAttempts) {
-            return recordFailed(leg, "Gave up after " + leg.attempts() + " attempts: " + reason);
+            return reschedule(leg, "IN_DOUBT", "No answer after " + leg.attempts() + " attempts: " + reason
+                            + ". A 5xx does not prove the refund did not happen, so the balance is not returned;"
+                            + " the same request id is sent again until PayPal answers.",
+                    retryDelay.multipliedBy(leg.attempts()), LegOutcome.IN_DOUBT);
         }
         // An IN_DOUBT leg stays IN_DOUBT: this 5xx says nothing about its first request.
         return reschedule(leg, leg.state(), "PayPal unavailable: " + reason, retryDelay.multipliedBy(leg.attempts()),

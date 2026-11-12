@@ -53,15 +53,27 @@ public class TopupController {
             switch (t.state()) {
                 case CAPTURED -> redirect.addFlashAttribute("notice", "Added " + Money.format(t.amountCents())
                         + " to your balance. PayPal confirmed the payment.");
-                case IN_DOUBT, CREATED -> redirect.addFlashAttribute("notice", "Processing: PayPal has not confirmed "
+                case IN_DOUBT, CREATED -> redirect.addFlashAttribute("pending", "Processing: PayPal has not confirmed "
                         + "your " + Money.format(t.amountCents()) + " payment yet. Your balance will update once "
                         + "it does. Please do not pay again.");
-                case DECLINED, NOT_CAPTURED -> redirect.addFlashAttribute("error", "Not added. " + t.failureReason());
+                case DECLINED, NOT_CAPTURED -> redirect.addFlashAttribute("error", "Not added. " + customerReason(t));
             }
         } catch (TopupRefusedException | IllegalArgumentException e) {
             redirect.addFlashAttribute("error", e.getMessage());
         }
         return back;
+    }
+
+    /** The failure as the customer should read it: staff details (configuration, request ids) stay on /topups. */
+    private static String customerReason(Topup t) {
+        String reason = t.failureReason() == null ? "" : t.failureReason();
+        if (reason.startsWith("Declined by PayPal")) {
+            return "PayPal declined the card. Nothing was charged.";
+        }
+        if (reason.startsWith("PayPal could not be reached")) {
+            return "PayPal could not be reached. Nothing was charged; please try again later.";
+        }
+        return "Nothing was charged.";
     }
 
     @GetMapping("/topups")
@@ -94,7 +106,8 @@ public class TopupController {
         String label = "Top-up of " + Money.format(after.amountCents()) + " for " + after.customerName();
         if (before.state() == after.state() && after.state() != TopupState.IN_DOUBT
                 && after.state() != TopupState.CREATED) {
-            redirect.addFlashAttribute("notice", label + " was already " + after.state() + ". Nothing to do.");
+            redirect.addFlashAttribute("notice", label + " was already "
+                    + after.state().name().toLowerCase().replace('_', ' ') + ". Nothing to do.");
         } else {
             switch (after.state()) {
                 case CAPTURED -> redirect.addFlashAttribute("notice", label + " resolved: PayPal has capture "
@@ -102,7 +115,7 @@ public class TopupController {
                         + (before.state() == TopupState.IN_DOUBT ? " and the in-doubt suspense reversed." : "."));
                 case NOT_CAPTURED, DECLINED -> redirect.addFlashAttribute("notice", label
                         + " resolved: PayPal did not capture it. Nothing credited. " + after.failureReason());
-                case IN_DOUBT, CREATED -> redirect.addFlashAttribute("error", label + " is still unconfirmed. "
+                case IN_DOUBT, CREATED -> redirect.addFlashAttribute("pending", label + " is still unconfirmed. "
                         + Objects.toString(after.failureReason(), "Its first PayPal call may still be in flight."));
             }
         }

@@ -24,6 +24,12 @@ public interface BreakRepository {
     /** Every break, newest first. */
     List<Break> findRecent(int limit);
 
+    /**
+     * Locks the given breaks until the surrounding transaction ends, in id order so that two
+     * transactions locking overlapping sets cannot deadlock. Returns them in id order.
+     */
+    List<Break> lockAll(List<Long> ids);
+
     /** OPEN to PROPOSED. Returns false when the break was not OPEN. */
     boolean markProposed(long id);
 

@@ -40,8 +40,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <li>{@code failNextRefundOn(captureId, Failure, Timing)}: next refund on that capture only</li>
  *   <li>{@code failNextGetOrder(Failure)}, {@code failNextGetCapture(Failure)}</li>
  *   <li>{@code declineCardNumber(number)}: every capture with that card is declined (422 INSTRUMENT_DECLINED)</li>
+ *   <li>{@code failNextCaptureCallAfterOrderCreated(Failure)}: the next captureCard creates the order
+ *       (status APPROVED, no capture), reports its id to the listener, then fails as the separate capture
+ *       call would. A re-send with the same request id captures that same order.</li>
  * </ul>
- * Failure is DECLINED (PayPalDeclinedException 422), UNAVAILABLE (PayPalUnavailableException 503) or
+ * Failure is DECLINED (PayPalDeclinedException 422), UNAVAILABLE (PayPalUnavailableException 503),
+ * UNREACHABLE (PayPalUnavailableException with no HTTP status: the request never reached PayPal) or
  * UNKNOWN (PayPalOutcomeUnknownException). Timing BEFORE_EFFECT throws without changing anything;
  * AFTER_EFFECT applies the capture or refund first (and records the request id), then throws, which is
  * how a dropped response looks.
@@ -54,7 +58,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class FakePayPalGateway implements PayPalGateway {
 
-    public enum Failure { DECLINED, UNAVAILABLE, UNKNOWN }
+    public enum Failure { DECLINED, UNAVAILABLE, UNREACHABLE, UNKNOWN }
 
     public enum Timing { BEFORE_EFFECT, AFTER_EFFECT }
 
@@ -112,6 +116,8 @@ public class FakePayPalGateway implements PayPalGateway {
     private final Map<String, RefundResult> refundByRequestId = new HashMap<>();
     private final Map<String, RefundArgs> refundArgsByRequestId = new HashMap<>();
     private final Deque<Script> captureScripts = new ArrayDeque<>();
+    private final Deque<Failure> captureCallScripts = new ArrayDeque<>();
+    private final Map<String, Order> approvedOrderByRequestId = new HashMap<>();
     private final List<Script> refundScripts = new ArrayList<>();
     private final Deque<Failure> getOrderScripts = new ArrayDeque<>();
     private final Deque<Failure> getCaptureScripts = new ArrayDeque<>();
@@ -126,7 +132,8 @@ public class FakePayPalGateway implements PayPalGateway {
     // ---- PayPalGateway ------------------------------------------------------------------------
 
     @Override
-    public synchronized CaptureResult captureCard(String requestId, long amountCents, String customId, TestCard card) {
+    public synchronized CaptureResult captureCard(String requestId, long amountCents, String customId, TestCard card,
+                                                  OrderCreated onOrderCreated) {
         Objects.requireNonNull(requestId, "requestId");
         CaptureArgs args = new CaptureArgs(amountCents, customId, card == null ? null : card.number());
         CaptureResult earlier = captureByRequestId.get(requestId);
@@ -145,7 +152,18 @@ public class FakePayPalGateway implements PayPalGateway {
         if (card != null && declinedCards.contains(card.number())) {
             throw decline(Op.CAPTURE, requestId, customId, amountCents, "INSTRUMENT_DECLINED");
         }
-        CaptureResult result = applyCapture(amountCents, customId);
+        Failure captureCallFailure = captureCallScripts.poll();
+        if (captureCallFailure != null) {
+            Order approved = approvedOrderByRequestId.computeIfAbsent(requestId, k -> {
+                Order o = new Order("FAKE-ORDER-" + sequence.incrementAndGet(), customId);
+                orders.put(o.id, o);
+                return o;
+            });
+            captureArgsByRequestId.put(requestId, args);
+            onOrderCreated.orderCreated(approved.id);
+            throw fail(Op.CAPTURE, requestId, customId, amountCents, captureCallFailure);
+        }
+        CaptureResult result = applyCapture(amountCents, customId, approvedOrderByRequestId.remove(requestId));
         captureByRequestId.put(requestId, result);
         captureArgsByRequestId.put(requestId, args);
         if (script != null) {
@@ -195,7 +213,8 @@ public class FakePayPalGateway implements PayPalGateway {
                 .flatMap(id -> captures.get(id).refundIds.stream())
                 .map(refunds::get)
                 .toList();
-        return new OrderSnapshot(order.id, "COMPLETED", order.customId, caps, refs);
+        return new OrderSnapshot(order.id, order.captureIds.isEmpty() ? "APPROVED" : "COMPLETED", order.customId, caps,
+                refs);
     }
 
     @Override
@@ -216,6 +235,11 @@ public class FakePayPalGateway implements PayPalGateway {
 
     public synchronized FakePayPalGateway failNextCapture(Failure failure, Timing timing) {
         captureScripts.add(new Script(failure, timing, null));
+        return this;
+    }
+
+    public synchronized FakePayPalGateway failNextCaptureCallAfterOrderCreated(Failure failure) {
+        captureCallScripts.add(failure);
         return this;
     }
 
@@ -261,7 +285,7 @@ public class FakePayPalGateway implements PayPalGateway {
      */
     public synchronized CaptureResult captureOutsideLedger(long amountCents, String customId) {
         String requestId = "outside-" + sequence.incrementAndGet();
-        CaptureResult result = applyCapture(amountCents, customId);
+        CaptureResult result = applyCapture(amountCents, customId, null);
         captureByRequestId.put(requestId, result);
         captureArgsByRequestId.put(requestId, new CaptureArgs(amountCents, customId, null));
         return result;
@@ -319,6 +343,8 @@ public class FakePayPalGateway implements PayPalGateway {
         refundByRequestId.clear();
         refundArgsByRequestId.clear();
         captureScripts.clear();
+        captureCallScripts.clear();
+        approvedOrderByRequestId.clear();
         refundScripts.clear();
         getOrderScripts.clear();
         getCaptureScripts.clear();
@@ -328,8 +354,8 @@ public class FakePayPalGateway implements PayPalGateway {
 
     // ---- Internals ----------------------------------------------------------------------------
 
-    private CaptureResult applyCapture(long amountCents, String customId) {
-        Order order = new Order("FAKE-ORDER-" + sequence.incrementAndGet(), customId);
+    private CaptureResult applyCapture(long amountCents, String customId, Order existing) {
+        Order order = existing != null ? existing : new Order("FAKE-ORDER-" + sequence.incrementAndGet(), customId);
         long fee = fee(amountCents);
         Capture capture = new Capture("FAKE-CAPTURE-" + sequence.incrementAndGet(), order.id, amountCents, fee,
                 customId, now());
@@ -389,6 +415,7 @@ public class FakePayPalGateway implements PayPalGateway {
         return switch (failure) {
             case DECLINED -> new PayPalDeclinedException("Fake PayPal: declined", 422, "SCRIPTED_DECLINE", "fake-debug");
             case UNAVAILABLE -> new PayPalUnavailableException("Fake PayPal: 503 Service Unavailable", 503, "fake-debug");
+            case UNREACHABLE -> new PayPalUnavailableException("Fake PayPal: connection refused", 0, null);
             case UNKNOWN -> new PayPalOutcomeUnknownException("Fake PayPal: read timed out");
         };
     }

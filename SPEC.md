@@ -111,12 +111,24 @@ present; otherwise treat the refund as reducing `PAYPAL_CASH` by the gross refun
 Top-up: `CREATED → CAPTURED | DECLINED | IN_DOUBT`, `IN_DOUBT → CAPTURED | NOT_CAPTURED`.
 While a customer has an `IN_DOUBT` top-up, a new top-up for that customer is refused
 (the guard that stops the classic double charge).
-Top-up details (module `topup`): the request id is `topup-<id>`. A 4xx, or a 5xx / connection
-refused on the first attempt, ends in `DECLINED` with nothing charged (the single request did not
-take effect, so the customer may start a new top-up). Resolving re-sends the original request with the
-same request id: PayPal returns the original capture if it made one, or makes it now if the first
-request never arrived; a 4xx on the re-send means `NOT_CAPTURED`; a 5xx or timeout leaves it
+Top-up details (module `topup`): the request id is `topup-<id>`. A 4xx on the first attempt ends in
+`DECLINED` with nothing charged, and so does a failure where no request reached PayPal (connection
+refused, DNS, TLS, OAuth token, credentials not set). A 5xx, 408, 409 or 429 on the first attempt does
+not prove that nothing was charged, so it ends in `IN_DOUBT` like a timeout, and the in-doubt guard
+blocks a second charge. When PayPal leaves the created order `APPROVED` (a separate capture call
+follows), its order id is stored in its own short transaction before the capture call, so a failed
+capture is checked with GET order and the close reads that order. Resolving uses GET order when the
+order id is known (an `APPROVED` order with no capture is re-sent); otherwise it re-sends the original
+request with the same request id: PayPal returns the original capture if it made one, or makes it now if
+the first request never arrived; a 4xx on the re-send means `NOT_CAPTURED`; a 5xx or timeout leaves it
 `IN_DOUBT`. A `CREATED` row untouched for 2 minutes (the app stopped mid-call) is resolved the same way.
+If PayPal reports a capture for a top-up that is already final, its order and capture ids are stored so
+the close raises an `UNBOOKED_CAPTURE` break.
+Request-id window: PayPal keeps a request id for 6 hours by default. A top-up created more than 5 hours
+ago is never re-sent; it stays `IN_DOUBT` with a "Needs a person" reason and the close stays `BROKEN`.
+A scheduler (`backed.topup.resolve-interval-ms`, default 60 s) resolves `IN_DOUBT` top-ups untouched for
+10 minutes, and stale `CREATED` ones, so they settle well inside the window; the 10 minutes leave room
+for a person to resolve one by hand. The day close resolves every one of them regardless of age.
 Amounts are $1.00 to $10,000.00. For reads (GET order, GET capture) a timeout counts as unavailable,
 and 408, 409 and 429 count as unavailable for every call. Live check of these assumptions:
 `./gradlew bootRun --args='--spring.profiles.active=sandbox-check'` (needs credentials).
@@ -129,18 +141,24 @@ the outbox). A scheduler picks up `PENDING` and `IN_DOUBT` legs with
 records the result. Resuming never re-sends a leg that is `DONE`. Legs are allocated
 newest capture first; a leg never exceeds what is still refundable on its capture.
 A run claims a leg by setting `cashout_legs.claimed_until` (added by `V30`, the cash-out
-module's migration) and counting the attempt; results are recorded only if the attempt count
-still matches. A 5xx retries a `PENDING` leg up to `backed.cashout.max-attempts` (default 5)
-and then fails and compensates it; an `IN_DOUBT` leg is only ever settled by PayPal's answer
-to the same request id, never failed for lack of one.
+module's migration) and counting the attempt; a leg claimed again while `claimed_until` is still set
+(its previous attempt never recorded a result) becomes `IN_DOUBT`. Failures and retries are recorded
+only if the attempt count still matches; a refund PayPal returns for the leg's request id is recorded
+as `DONE` whenever the leg is still `PENDING` or `IN_DOUBT`. A 5xx retries a `PENDING` leg up to
+`backed.cashout.max-attempts` (default 5) and then moves it to `IN_DOUBT`, never to `FAILED`, because a
+5xx does not prove the refund did not happen. Only a 4xx (or a refund status of `FAILED`, `CANCELLED`
+or `DENIED`) on a `PENDING` leg fails and compensates it. An `IN_DOUBT` leg is only ever settled by
+PayPal's answer to the same request id: a 4xx on its re-send leaves it `IN_DOUBT` for a person to check,
+because that 4xx says nothing about the first request.
 
 Error classification for every PayPal call:
 
 | PayPal says | meaning | action |
 |---|---|---|
 | 2xx | done | record |
-| 4xx business error | will never succeed | no retry, fail the step |
-| 5xx / connection refused | not done | retry later with the same request id |
+| 4xx business error | will never succeed | no retry, fail the step (except an `IN_DOUBT` step: its first request may have worked) |
+| connection refused, DNS, TLS, OAuth token | not done | retry later with the same request id |
+| 5xx, 408, 409, 429 | probably not done, not proven | retry later with the same request id; a top-up goes `IN_DOUBT`; a cash-out leg goes `IN_DOUBT` after the attempt limit, never `FAILED` |
 | read timeout / connection dropped mid-response | unknown | `IN_DOUBT`, resolve by re-sending the same request id |
 
 ## Day close
@@ -155,7 +173,8 @@ For the current business date:
 3. Check: every entry balances; sum of `customer_balances` = `CUSTOMER_PREPAID` balance;
    ledger `PAYPAL_CASH` = cash derived from PayPal's records. The difference in the
    last check is the "unexplained" amount.
-4. The day is `CLOSED` only if there are no open breaks, nothing `IN_DOUBT`, and
+4. The day is `CLOSED` only if there are no open breaks, nothing `IN_DOUBT` (a `PENDING` leg the
+   relay holds right now counts as in doubt: PayPal may already have refunded it), and
    unexplained = 0. Otherwise it is `BROKEN` and lists the breaks.
 
 Transaction Search is not used (it lags by hours in sandbox). The close reads orders,
@@ -235,23 +254,31 @@ Details fixed by the `investigate` module:
   `PENDING_APPROVAL`, and for a break that is no longer `OPEN` or `PROPOSED`; it re-validates
   against fresh data, then posts, applies the balance, resolves the break(s) and marks the
   proposal `APPROVED` in one transaction under a row lock on the proposal, and runs
-  `CloseRunner.runClose` after commit.
-- Routes: `POST /breaks/{id}/investigate` (MAKER, checked in the controller because
-  `SecurityConfig` has no `/breaks/**` rule), `GET /proposals`, `GET /proposals/{id}`,
-  `POST /proposals/{id}/approve` (CHECKER), `POST /proposals/{id}/dismiss`.
+  `CloseRunner.runClose` after commit. Inside that transaction every break the entry explains
+  (two for a duplicate reversal) is locked with `select ... for update` in id order and re-checked;
+  if another approval resolved one of them meanwhile, the approval is refused and nothing is posted.
+- A `NEEDS_HUMAN` answer is stored as `REJECTED_BY_VALIDATOR` (there is no entry to draft) and
+  shown as "Needs a human", not as a validation failure.
+- Routes: `POST /breaks/{id}/investigate` (MAKER; also checked in the controller),
+  `GET /proposals`, `GET /proposals/{id}`, `POST /proposals/{id}/approve` (CHECKER),
+  `POST /proposals/{id}/dismiss` (CHECKER).
 
 ## Users (demo, in memory)
 
-`clerk` (role CLERK: counter), `maker` (role MAKER: runs close, requests proposals),
-`checker` (role CHECKER: approves). Password for all: `demo`. Customers do not log in;
-each has a private link `/c/{token}`.
+`clerk` (role CLERK: counter), `maker` (role MAKER: runs the close and advances the date,
+resolves top-ups, runs the cash-out relay, requests investigations, demo faults, and the counter),
+`checker` (role CHECKER: approves and dismisses proposals; reads every staff page). Password for all:
+`demo`. Customers do not log in; each has a private link `/c/{token}`. `SecurityConfig` enforces this
+per route; pages hide the buttons a role cannot use. Errors (403, 404, 400) render `templates/error.html`.
 
 ## Demo faults
 
 `/admin/faults` (MAKER) exposes clearly labelled switches used in the demo and tests:
 drop the response of the next capture after PayPal has accepted it; fail the next
-refund with a 5xx; issue a refund directly at PayPal outside the ledger (stands in
-for a refund made by hand in the PayPal dashboard).
+refund with a 5xx; decline the next refund with a 4xx; and a form that issues a refund
+directly at PayPal outside the ledger (stands in for a refund made by hand in the PayPal
+dashboard). Every staff page shows a banner when PayPal credentials or `ANTHROPIC_API_KEY`
+are missing.
 
 ## Tests that must exist
 
@@ -262,6 +289,10 @@ for a refund made by hand in the PayPal dashboard).
 - New top-up refused while one is `IN_DOUBT`.
 - Cash-out across three captures where leg 2 fails with 5xx: on resume only leg 2 is
   sent again, with its original request id.
+- A 5xx on a top-up's first attempt is `IN_DOUBT`, blocks a second charge, and is credited once.
+- A cash-out leg whose refund may exist (5xx after the refund, expired claim, 4xx on an in-doubt
+  re-send) is never compensated.
+- Two approvals that book the same refund cannot both post.
 - 4xx on a refund: zero retries, leg `FAILED`, balance compensated.
 - Same webhook delivered twice: processed once.
 - Self-approval rejected; unbalanced or mis-amounted draft rejected.
@@ -297,4 +328,7 @@ These are fixed by the foundation commit; module code relies on them.
 - Tests extend `dev.backed.support.AbstractDbTest`: one Spring context, every table truncated and
   the seed reloaded before each test, fake PayPal and fault switch reset.
 - Customer page actions (`POST /c/{token}/topup`, `/cashout`) redirect back to `/c/{token}` with a
-  flash attribute `notice` (success) or `error`.
+  flash attribute `notice` (success), `pending` (waiting for PayPal, for example an `IN_DOUBT` or
+  `CREATED` top-up) or `error`. Staff pages use the same three kinds. The customer page shows states in
+  customer words ("Waiting for PayPal", "Not charged") and never shows failure reasons, request ids or
+  capture ids; those stay on the staff pages.

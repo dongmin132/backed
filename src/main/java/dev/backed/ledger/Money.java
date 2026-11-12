@@ -6,13 +6,15 @@ import java.util.regex.Pattern;
 /** USD cents parsing and formatting without floating point. */
 public final class Money {
 
-    private static final Pattern AMOUNT = Pattern.compile("\\$?\\s*(\\d{1,9})(?:\\.(\\d{1,2}))?");
+    /** Whole dollars with optional thousands commas ("1,234"), then up to two decimals. A decimal comma is refused. */
+    private static final Pattern AMOUNT =
+            Pattern.compile("\\$?\\s*(\\d{1,3}(?:,\\d{3}){1,2}|\\d{1,9})(?:\\.(\\d{1,2}))?");
 
     private Money() {
     }
 
     /**
-     * Parses a user-typed dollar amount such as "12", "12.5", "12.50" or "$12.50" into cents.
+     * Parses a user-typed dollar amount such as "12", "12.5", "12.50", "$12.50" or "1,234.50" into cents.
      *
      * @throws IllegalArgumentException when the text is not a positive amount with at most two decimals
      */
@@ -20,11 +22,11 @@ public final class Money {
         if (text == null) {
             throw new IllegalArgumentException("Enter an amount");
         }
-        Matcher m = AMOUNT.matcher(text.trim().replace(",", ""));
+        Matcher m = AMOUNT.matcher(text.trim());
         if (!m.matches()) {
             throw new IllegalArgumentException("Enter an amount like 12.50");
         }
-        long dollars = Long.parseLong(m.group(1));
+        long dollars = Long.parseLong(m.group(1).replace(",", ""));
         String frac = m.group(2) == null ? "0" : m.group(2);
         long cents = frac.length() == 1 ? Long.parseLong(frac) * 10 : Long.parseLong(frac);
         long total = Math.addExact(Math.multiplyExact(dollars, 100), cents);

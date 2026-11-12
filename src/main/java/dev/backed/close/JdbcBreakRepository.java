@@ -75,6 +75,17 @@ public class JdbcBreakRepository implements BreakRepository {
     }
 
     @Override
+    public List<Break> lockAll(List<Long> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return jdbc.sql("select * from breaks where id in (:ids) order by id for update")
+                .param("ids", ids)
+                .query(this::map)
+                .list();
+    }
+
+    @Override
     public boolean markProposed(long id) {
         return transition(id, "OPEN", "PROPOSED");
     }

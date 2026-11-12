@@ -182,6 +182,24 @@ class DayCloseServiceTest extends AbstractDbTest {
         assertThat(jdbc.sql("select count(*) from breaks").query(Integer.class).single()).isZero();
     }
 
+    /**
+     * "Run close" clicked while the scheduled relay is in the middle of a leg's PayPal call: PayPal
+     * already holds the refund, the leg is still PENDING and claimed. The leg counts as unresolved.
+     */
+    @Test
+    void legBeingSentByTheRelayCountsAsUnresolved() {
+        CloseFixtures.Topup topup = fx.capturedTopup(customerA().id(), 5_000);
+        fx.inDoubtCashout(topup, 2_000);
+        jdbc.sql("update cashout_legs set state = 'PENDING', claimed_until = now() + interval '60 seconds'").update();
+
+        CloseOutcome outcome = close.runClose("maker");
+
+        assertThat(outcome.status()).isEqualTo(CloseStatus.BROKEN);
+        assertThat(outcome.openBreakIds()).isEmpty();
+        assertThat(outcome.inDoubtCount()).isEqualTo(1);
+        assertThat(outcome.notes()).anyMatch(n -> n.contains("being sent"));
+    }
+
     @Test
     void captureOnADeclinedTopupIsAnUnbookedCapture() {
         long c = customerC().id();

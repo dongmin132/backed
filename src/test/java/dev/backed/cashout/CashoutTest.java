@@ -147,7 +147,7 @@ class CashoutTest extends AbstractDbTest {
     }
 
     @Test
-    void repeated5xxIsRetriedWithTheSameRequestIdUntilTheAttemptLimitThenCompensated() {
+    void repeated5xxIsRetriedWithTheSameRequestIdThenLeftInDoubtNotCompensated() {
         long a = customerA().id();
         capturedTopup(a, 1_000);
         CashoutRequestResult request = cashouts.request(a, null, "customer:" + a);
@@ -161,16 +161,105 @@ class CashoutTest extends AbstractDbTest {
         }
         RelayReport last = relay.runOnce();
 
-        assertThat(last.failed()).isEqualTo(1);
+        assertThat(last.inDoubt()).isEqualTo(1);
         CashoutQueries.LegView leg = queries.legsOf(request.cashoutId()).getFirst();
-        assertThat(leg.state()).isEqualTo("FAILED");
+        assertThat(leg.state()).isEqualTo("IN_DOUBT");
         assertThat(leg.attempts()).isEqualTo(5);
-        assertThat(leg.lastError()).startsWith("Gave up after 5 attempts");
-        assertThat(fakePayPal.refundCalls()).hasSize(5)
+        assertThat(leg.lastError()).startsWith("No answer after 5 attempts");
+        assertThat(balanceOf(a)).as("a 5xx does not prove the refund did not happen").isZero();
+        assertThat(cashoutState(request.cashoutId())).isEqualTo("REQUESTED");
+
+        assertThat(relay.runOnce().refunded()).isEqualTo(1);
+        assertThat(fakePayPal.refundCalls()).hasSize(6)
                 .extracting(Call::requestId).containsOnly(CashoutService.legRequestId(request.cashoutId(), 1));
-        assertThat(cashoutState(request.cashoutId())).isEqualTo("COMPENSATED");
-        assertThat(balanceOf(a)).isEqualTo(1_000);
+        assertThat(fakePayPal.refunds()).hasSize(1);
+        assertThat(cashoutState(request.cashoutId())).isEqualTo("SETTLED");
+        assertThat(balanceOf(a)).isZero();
         assertBooksBalance();
+        assertPayPalCashMatchesPayPal();
+    }
+
+    /** PayPal refunds on attempt 1 but answers 503; four more 503s follow. The leg must not be compensated. */
+    @Test
+    void a5xxAfterTheRefundTookEffectFollowedBy5xxDoesNotCompensate() {
+        long a = customerA().id();
+        capturedTopup(a, 1_000);
+        CashoutRequestResult request = cashouts.request(a, null, "customer:" + a);
+        fakePayPal.failNextRefund(Failure.UNAVAILABLE, Timing.AFTER_EFFECT);
+        relay.runOnce();
+        for (int i = 0; i < 4; i++) {
+            faults.arm(FaultSwitch.Fault.FAIL_NEXT_REFUND_WITH_5XX);
+            relay.runOnce();
+        }
+
+        assertThat(fakePayPal.refunds()).hasSize(1);
+        assertThat(queries.legsOf(request.cashoutId()).getFirst().state()).isEqualTo("IN_DOUBT");
+        assertThat(balanceOf(a)).isZero();
+
+        relay.runOnce();
+        assertThat(queries.legsOf(request.cashoutId()).getFirst().state()).isEqualTo("DONE");
+        assertThat(fakePayPal.refunds()).hasSize(1);
+        assertBooksBalance();
+        assertPayPalCashMatchesPayPal();
+    }
+
+    /**
+     * Three 5xx attempts; attempt 4 reaches PayPal and refunds, then the process stops before it records
+     * the result and the claim lease runs out; attempt 5 gets a 5xx. The leg must not be compensated.
+     */
+    @Test
+    void crashAfterRefundThenA5xxAtTheAttemptLimitDoesNotCompensate() {
+        long a = customerA().id();
+        capturedTopup(a, 1_000);
+        CashoutRequestResult request = cashouts.request(a, null, "customer:" + a);
+        for (int i = 0; i < 3; i++) {
+            faults.arm(FaultSwitch.Fault.FAIL_NEXT_REFUND_WITH_5XX);
+            relay.runOnce();
+        }
+        List<CashoutRelay.ClaimedLeg> claimed = relay.claim(true);
+        assertThat(claimed).hasSize(1);
+        CashoutRelay.ClaimedLeg leg = claimed.getFirst();
+        fakePayPal.refundCapture(leg.requestId(), leg.captureId(), leg.amountCents(), CashoutService.NOTE_TO_PAYER);
+        jdbc.sql("update cashout_legs set claimed_until = now() - interval '1 second'").update();
+
+        faults.arm(FaultSwitch.Fault.FAIL_NEXT_REFUND_WITH_5XX);
+        relay.runOnce();
+
+        CashoutQueries.LegView after = queries.legsOf(request.cashoutId()).getFirst();
+        assertThat(after.state()).as("an expired claim leaves the outcome unknown").isEqualTo("IN_DOUBT");
+        assertThat(after.attempts()).isEqualTo(5);
+        assertThat(fakePayPal.refunds()).hasSize(1);
+        assertThat(balanceOf(a)).as("PayPal already refunded the leg").isZero();
+
+        relay.runOnce();
+        assertThat(queries.legsOf(request.cashoutId()).getFirst().state()).isEqualTo("DONE");
+        assertBooksBalance();
+        assertPayPalCashMatchesPayPal();
+    }
+
+    /** An IN_DOUBT leg whose first request did refund, then a 4xx on the re-send: never compensated. */
+    @Test
+    void inDoubtLegIsNotCompensatedWhenTheResendIsDeclined() {
+        long a = customerA().id();
+        String capture = capturedTopup(a, 1_000);
+        CashoutRequestResult request = cashouts.request(a, null, "customer:" + a);
+        fakePayPal.failNextRefundOn(capture, Failure.UNKNOWN, Timing.AFTER_EFFECT);
+        relay.runOnce();
+        assertThat(queries.legsOf(request.cashoutId()).getFirst().state()).isEqualTo("IN_DOUBT");
+
+        faults.arm(FaultSwitch.Fault.DECLINE_NEXT_REFUND);
+        assertThat(relay.runOnce().inDoubt()).isEqualTo(1);
+
+        CashoutQueries.LegView leg = queries.legsOf(request.cashoutId()).getFirst();
+        assertThat(leg.state()).isEqualTo("IN_DOUBT");
+        assertThat(leg.lastError()).contains("refused the re-send");
+        assertThat(balanceOf(a)).as("the refund exists at PayPal, so the balance must not come back").isZero();
+
+        relay.runOnce();
+        assertThat(queries.legsOf(request.cashoutId()).getFirst().state()).isEqualTo("DONE");
+        assertThat(fakePayPal.refunds()).hasSize(1);
+        assertBooksBalance();
+        assertPayPalCashMatchesPayPal();
     }
 
     @Test

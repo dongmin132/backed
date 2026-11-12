@@ -45,8 +45,8 @@
             <tr th:each="h : ${history}">
                 <td th:text="${@fmt.date(h.businessDate)}">2026-01-01</td>
                 <td>
-                    <span th:text="${@fmt.label(h.kind)}">Top-up captured</span>
-                    <span class="muted small" th:if="${h.memo != null}" th:text="${h.memo}"></span>
+                    <span th:text="${@fmt.historyForCustomer(h.kind, h.amountCents)}">Top-up</span>
+                    <span class="muted small" th:if="${h.kind == 'SPEND' and h.memo != null}" th:text="${h.memo}"></span>
                 </td>
                 <td class="num" th:classappend="${h.amountCents < 0} ? 'neg' : 'pos'" th:text="${@fmt.signed(h.amountCents)}">+$0.00</td>
             </tr>
@@ -62,14 +62,14 @@
             <tbody>
             <tr th:each="t : ${topups}">
                 <td th:text="${@fmt.time(t.createdAt)}"></td>
-                <td>Top-up <span class="muted small" th:if="${t.failureReason != null}" th:text="${t.failureReason}"></span></td>
-                <td><span class="badge" th:classappend="${@fmt.tone(t.state)}" th:text="${@fmt.label(t.state)}">Captured</span></td>
+                <td>Top-up</td>
+                <td><span class="badge" th:classappend="${@fmt.customerTone(t.state)}" th:text="${@fmt.topupForCustomer(t.state)}">Added</span></td>
                 <td class="num" th:text="${@fmt.money(t.amountCents)}">$0.00</td>
             </tr>
             <tr th:each="c : ${cashouts}">
                 <td th:text="${@fmt.time(c.createdAt)}"></td>
                 <td>Cash-out</td>
-                <td><span class="badge" th:classappend="${@fmt.tone(c.state)}" th:text="${@fmt.label(c.state)}">Settled</span></td>
+                <td><span class="badge" th:classappend="${@fmt.customerTone(c.state)}" th:text="${@fmt.cashoutForCustomer(c.state)}">Refunded</span></td>
                 <td class="num" th:text="${@fmt.money(c.amountCents)}">$0.00</td>
             </tr>
             </tbody>

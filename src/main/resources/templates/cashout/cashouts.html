@@ -9,7 +9,7 @@
         <div class="stat">
             <span class="stat-label">In flight</span>
             <span class="stat-value num" th:text="${@fmt.money(clearingCents)}">$0.00</span>
-            <span class="stat-note muted">CASHOUT_CLEARING: taken from balances, not yet refunded</span>
+            <span class="stat-note muted">Taken from balances, not yet refunded at PayPal</span>
         </div>
         <div class="stat">
             <span class="stat-label">Legs waiting</span>
@@ -37,10 +37,11 @@
             <p class="muted grow" style="margin: 0">
                 The relay sends pending and in-doubt legs to PayPal every few seconds, each with its own stored
                 request id. A declined leg is not retried and its amount goes back to the balance. A 5xx is retried
-                later with the same request id. An unknown outcome is re-sent with the same request id, which
-                PayPal answers with the original refund if it already happened.
+                later with the same request id; after five tries the leg is held as in doubt, never returned to the
+                balance, because a 5xx does not prove the refund did not happen. An unknown outcome is re-sent with
+                the same request id, which PayPal answers with the original refund if it already happened.
             </p>
-            <button type="submit" class="primary">Run relay now</button>
+            <button type="submit" class="primary" th:if="${#strings.contains(currentRoles, 'MAKER')}">Run relay now</button>
         </form>
     </section>
 
@@ -54,7 +55,7 @@
         </h2>
         <p class="muted small">
             Requested <span th:text="${@fmt.time(c.createdAt)}">2026-01-01 10:00:00 UTC</span>
-            by <span th:text="${c.createdBy}">customer:1</span>,
+            by <span th:text="${@fmt.actor(c.createdBy)}">customer:1</span>,
             business date <span th:text="${@fmt.date(c.businessDate)}">2026-01-01</span>,
             request <code th:text="${c.requestId}">cashout-req</code>
         </p>

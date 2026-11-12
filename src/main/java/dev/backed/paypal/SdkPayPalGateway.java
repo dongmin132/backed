@@ -133,12 +133,19 @@ public class SdkPayPalGateway implements PayPalGateway {
         return client != null;
     }
 
+    @Override
+    public boolean configured() {
+        return isConfigured();
+    }
+
     // ---- writes -------------------------------------------------------------------------------
 
     @Override
-    public CaptureResult captureCard(String requestId, long amountCents, String customId, TestCard card) {
+    public CaptureResult captureCard(String requestId, long amountCents, String customId, TestCard card,
+                                     OrderCreated onOrderCreated) {
         Objects.requireNonNull(requestId, "requestId");
         Objects.requireNonNull(card, "card");
+        Objects.requireNonNull(onOrderCreated, "onOrderCreated");
         PaypalServerSdkClient c = requireClient();
         OrderRequest body = new OrderRequest.Builder(CheckoutPaymentIntent.CAPTURE, List.of(
                 new PurchaseUnitRequest.Builder(new AmountWithBreakdown.Builder(USD, Money.toDecimalString(amountCents))
@@ -167,7 +174,9 @@ public class SdkPayPalGateway implements PayPalGateway {
         String status = enumValue(order.getStatus());
         if ("APPROVED".equals(status)) {
             // Card orders normally complete on create; if PayPal leaves one APPROVED, capture it with a
-            // request id derived from ours so a re-send of the whole top-up stays idempotent.
+            // request id derived from ours so a re-send of the whole top-up stays idempotent. The caller
+            // stores the order id first: if the capture call fails, GET order still finds the money.
+            onOrderCreated.orderCreated(order.getId());
             String captureRequestId = requestId + "-capture";
             CaptureOrderInput captureInput = new CaptureOrderInput.Builder(order.getId(), JSON)
                     .paypalRequestId(captureRequestId)

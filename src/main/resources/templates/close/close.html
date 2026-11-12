@@ -12,7 +12,7 @@
                 The close reads every order from PayPal and compares it with the ledger.
             </p>
         </div>
-        <div class="close-actions">
+        <div class="close-actions" th:if="${isMaker}">
             <form th:action="@{/close/run}" method="post" class="inline">
                 <button type="submit" class="primary">Run close</button>
             </form>
@@ -34,7 +34,7 @@
                   th:text="${@fmt.label(latest.status)}">Closed</span>
             <span class="muted">
                 Run <span th:text="${'#' + latest.id}">#1</span>
-                by <strong th:text="${latest.runBy}">maker</strong>
+                by <strong th:text="${@fmt.actor(latest.runBy)}">maker</strong>
                 at <span th:text="${@fmt.time(latest.runAt)}">time</span>
                 <th:block th:if="${summary != null}">
                     &middot; <span th:text="${summary.ordersChecked}">0</span> PayPal orders read
@@ -100,10 +100,13 @@
                     <td><code th:text="${b.paypalRef}">REF</code></td>
                     <td class="break-note" th:text="${b.note != null} ? ${b.note} : ''"></td>
                     <td><span class="badge" th:classappend="${@fmt.tone(b.status)}" th:text="${@fmt.label(b.status)}">Open</span></td>
-                    <td>
-                        <form th:action="@{/breaks/{id}/investigate(id=${b.id})}" method="post" class="inline">
+                    <td th:with="pendingId=${pendingProposals.get(b.id)}">
+                        <form th:if="${isMaker and aiConfigured and b.status.name() == 'OPEN'}"
+                              th:action="@{/breaks/{id}/investigate(id=${b.id})}" method="post" class="inline">
                             <button type="submit" class="primary">Investigate</button>
                         </form>
+                        <a th:if="${pendingId != null}" th:href="@{/proposals/{id}(id=${pendingId})}"
+                           th:text="${'Proposal #' + pendingId}">Proposal #1</a>
                     </td>
                 </tr>
                 </tbody>
@@ -133,7 +136,7 @@
                     <td class="num" th:text="${@fmt.money(r.paypalDerivedCashCents)}">$0.00</td>
                     <td class="num" th:classappend="${r.unexplainedCents != null and r.unexplainedCents != 0} ? 'unexplained'"
                         th:text="${@fmt.money(r.unexplainedCents)}">$0.00</td>
-                    <td th:text="${r.runBy}">maker</td>
+                    <td th:text="${@fmt.actor(r.runBy)}">maker</td>
                     <td class="muted" th:text="${@fmt.time(r.runAt)}">time</td>
                 </tr>
                 </tbody>

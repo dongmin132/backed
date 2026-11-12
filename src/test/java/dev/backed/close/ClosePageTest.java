@@ -1,10 +1,12 @@
 package dev.backed.close;
 
+import dev.backed.investigate.InvestigateTestConfig;
 import dev.backed.support.AbstractDbTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
@@ -22,16 +24,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @AutoConfigureMockMvc
+@Import(InvestigateTestConfig.class)
 class ClosePageTest extends AbstractDbTest {
 
     @Autowired
     MockMvc mvc;
+    @Autowired
+    InvestigateTestConfig.StubInvestigator investigator;
 
     CloseFixtures fx;
 
     @BeforeEach
     void fixtures() {
         fx = new CloseFixtures(jdbc, tx, journal, fakePayPal);
+        investigator.reset();
     }
 
     @Test
@@ -63,6 +69,29 @@ class ClosePageTest extends AbstractDbTest {
                 .andExpect(content().string(containsString("/breaks/" + breakId + "/investigate")))
                 .andExpect(content().string(not(containsString("Advance to next business day"))));
         assertThat(jdbc.sql("select run_by from day_closes").query(String.class).single()).isEqualTo("maker");
+
+        mvc.perform(get("/close").with(user("checker").roles("CHECKER")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Goodwill for the late order")))
+                .andExpect(content().string(not(containsString("/investigate"))))
+                .andExpect(content().string(not(containsString("Run close"))));
+
+        investigator.setConfigured(false);
+        mvc.perform(get("/close").with(user("maker").roles("MAKER")))
+                .andExpect(content().string(not(containsString("/investigate"))))
+                .andExpect(content().string(containsString("AI investigator is not configured")));
+    }
+
+    @Test
+    void onlyTheMakerRunsOperationsAndOnlyTheCheckerDismisses() throws Exception {
+        for (String route : new String[]{"/close/run", "/close/advance", "/cashouts/relay",
+                "/topups/00000000-0000-0000-0000-000000000000/resolve"}) {
+            mvc.perform(post(route).with(user("checker").roles("CHECKER")).with(csrf()))
+                    .andExpect(status().isForbidden());
+        }
+        mvc.perform(post("/proposals/1/dismiss").with(user("maker").roles("MAKER")).with(csrf()))
+                .andExpect(status().isForbidden());
+        assertThat(jdbc.sql("select count(*) from day_closes").query(Integer.class).single()).isZero();
     }
 
     @Test
@@ -73,7 +102,7 @@ class ClosePageTest extends AbstractDbTest {
         mvc.perform(post("/close/advance").with(user("maker").roles("MAKER")).with(csrf()))
                 .andExpect(flash().attribute("error", containsString("Run the close")));
 
-        mvc.perform(post("/close/run").with(user("checker").roles("CHECKER")).with(csrf()))
+        mvc.perform(post("/close/run").with(user("maker").roles("MAKER")).with(csrf()))
                 .andExpect(flash().attribute("notice", containsString("closed")));
         mvc.perform(get("/close").with(user("maker").roles("MAKER")))
                 .andExpect(content().string(containsString("Advance to next business day")))

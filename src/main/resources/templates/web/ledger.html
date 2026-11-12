@@ -36,8 +36,8 @@
                 <span th:text="${@fmt.date(e.businessDate)}">2026-01-01</span>
                 <span class="muted" th:text="${e.memo}">memo</span>
                 <span class="entry-by muted">
-                    by <span th:text="${e.createdBy}">maker</span>
-                    <th:block th:if="${e.approvedBy != null}">, approved by <span th:text="${e.approvedBy}">checker</span></th:block>
+                    by <span th:text="${@fmt.actor(e.createdBy)}">maker</span>
+                    <th:block th:if="${e.approvedBy != null}">, approved by <span th:text="${@fmt.actor(e.approvedBy)}">checker</span></th:block>
                     <span th:if="${e.refType != null}" th:text="${'· ' + e.refType + ' ' + e.refId}"></span>
                 </span>
             </header>

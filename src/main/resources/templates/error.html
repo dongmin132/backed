@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<!--/* Spring Boot's error view. Standalone on purpose: it must render even when the request never
+     reached a controller (for example a 403 from the security filter). */-->
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${(status != null ? status + ' ' : '') + 'Something went wrong | Backed'}">Error | Backed</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<header class="topbar">
+    <div class="topbar-inner">
+        <a class="brand" th:href="@{/}">Backed</a>
+    </div>
+</header>
+<main class="container narrow">
+    <section class="card">
+        <p class="stat-label" th:text="${status != null ? 'Error ' + status : 'Error'}">Error 500</p>
+        <h1 th:switch="${status}">
+            <span th:case="403">Your role cannot do this</span>
+            <span th:case="404">Not found</span>
+            <span th:case="400">The request was not understood</span>
+            <span th:case="*">Something went wrong</span>
+        </h1>
+        <p class="muted" th:switch="${status}">
+            <span th:case="403">The maker runs top-up resolution, cash-out relays, the close and investigations. The
+                checker approves and dismisses proposals. The clerk works the counter. Sign in as the user whose role
+                fits the action.</span>
+            <span th:case="404">There is nothing at this address. It may have been typed wrong, or the item does not
+                exist.</span>
+            <span th:case="400">A value in the request was missing or had the wrong form.</span>
+            <span th:case="*">The server could not finish this request. The details are in the server log.</span>
+        </p>
+        <p class="muted small" th:if="${path != null}">Address: <code th:text="${path}">/path</code></p>
+        <p><a th:href="@{/}">Back to the dashboard</a></p>
+    </section>
+</main>
+</body>
+</html>

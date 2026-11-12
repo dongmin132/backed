@@ -1,5 +1,6 @@
 package dev.backed.topup;
 
+import dev.backed.config.Actors;
 import dev.backed.customer.Customer;
 import dev.backed.customer.Customers;
 import dev.backed.ledger.Account;
@@ -22,10 +23,13 @@ import dev.backed.paypal.TestCards;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -45,6 +49,10 @@ import java.util.concurrent.locks.ReentrantLock;
  * Resolving an in-doubt top-up re-sends the same request id, so PayPal returns the original capture
  * if it made one. The row lock, the state check, the unique capture id and the unique journal
  * (kind, ref) together make sure a capture is credited exactly once.
+ *
+ * <p>PayPal keeps a request id for 6 hours by default; after that a re-send is a new charge. A top-up
+ * older than {@link #RESEND_WINDOW} is therefore never re-sent: it stays IN_DOUBT for a person, and the
+ * close stays BROKEN. A scheduler resolves in-doubt top-ups well inside the window.
  */
 @Service
 public class TopupService {
@@ -55,6 +63,10 @@ public class TopupService {
     public static final long MAX_CENTS = 1_000_000;
     /** A CREATED row untouched this long is treated as an attempt whose outcome was lost (the app stopped). */
     static final long STALE_CREATED_SECONDS = 120;
+    /** The scheduler leaves an IN_DOUBT top-up this long for a person to resolve before it resolves it itself. */
+    static final long SCHEDULED_RESOLVE_AFTER_SECONDS = 600;
+    /** Re-sending is safe only while PayPal still knows the request id (6 hours by default). */
+    static final Duration RESEND_WINDOW = Duration.ofHours(5);
     static final String REF_TYPE = "topup";
 
     private final Topups topups;
@@ -149,15 +161,48 @@ public class TopupService {
         if (t.paypalOrderId() != null) {
             return resolveFromOrder(t, actor);
         }
+        return resend(t, actor);
+    }
+
+    /** Re-sends the original request with its request id, unless PayPal may have forgotten that id. */
+    private Topup resend(Topup t, String actor) {
+        if (!withinResendWindow(t)) {
+            log.error("Top-up {} is older than {} and was not re-sent; request id {} must be checked by a person",
+                    t.id(), RESEND_WINDOW, t.requestId());
+            return recordInDoubt(t.id(), "Needs a person: this top-up is more than " + RESEND_WINDOW.toHours()
+                    + " hours old, and PayPal keeps request ids for about 6 hours, so re-sending " + t.requestId()
+                    + " could charge the card again. Look for custom id " + t.id() + " in PayPal.", actor);
+        }
         Customer customer = customers.byId(t.customerId()).orElseThrow();
         return attempt(t, cards.get(customer.cardRef()), actor, false);
     }
 
     /** Resolves every IN_DOUBT top-up and every stale CREATED one. Returns how many reached a final state. */
     public int resolveAll(String actor) {
+        return resolveAll(actor, 0);
+    }
+
+    /**
+     * Resolves in-doubt top-ups in the background so they are settled long before PayPal forgets their
+     * request ids. Each one is left alone for a while first, so a person can resolve it by hand.
+     */
+    @Scheduled(fixedDelayString = "${backed.topup.resolve-interval-ms:60000}",
+            initialDelayString = "${backed.topup.resolve-initial-delay-ms:30000}")
+    public void scheduledResolve() {
+        try {
+            int settled = resolveAll(Actors.SCHEDULER, SCHEDULED_RESOLVE_AFTER_SECONDS);
+            if (settled > 0) {
+                log.info("Scheduled resolver settled {} top-up(s)", settled);
+            }
+        } catch (RuntimeException e) {
+            log.warn("Scheduled top-up resolver failed; it will run again", e);
+        }
+    }
+
+    private int resolveAll(String actor, long inDoubtAgeSeconds) {
         requireNoTransaction();
         int settled = 0;
-        for (UUID id : topups.idsToResolve(STALE_CREATED_SECONDS)) {
+        for (UUID id : topups.idsToResolve(STALE_CREATED_SECONDS, inDoubtAgeSeconds)) {
             try {
                 if (!resolve(id, actor).state().unresolved()) {
                     settled++;
@@ -174,19 +219,23 @@ public class TopupService {
     private Topup attempt(Topup t, TestCard card, String actor, boolean firstAttempt) {
         CaptureResult result;
         try {
-            result = paypal.captureCard(t.requestId(), t.amountCents(), t.id().toString(), card);
+            result = paypal.captureCard(t.requestId(), t.amountCents(), t.id().toString(), card,
+                    orderId -> tx.executeWithoutResult(s -> topups.recordPaypalIds(t.id(), orderId, null)));
         } catch (PayPalDeclinedException e) {
             log.info("PayPal declined top-up {}: {}", t.id(), e.getMessage());
             return recordNotCaptured(t.id(), declinedReason(e), actor);
         } catch (PayPalUnavailableException e) {
             log.warn("PayPal unavailable for top-up {}: {}", t.id(), e.getMessage());
-            if (firstAttempt) {
-                // The one request we sent did not take effect, so nothing was charged.
+            if (firstAttempt && !e.reachedPayPal()) {
+                // No request reached PayPal, so nothing was charged.
                 return recordNotCaptured(t.id(), "PayPal could not be reached (" + brief(e)
                         + "). Nothing was charged; you can try again.", actor);
             }
-            return recordInDoubt(t.id(), "Still unconfirmed: PayPal could not be reached on re-send (" + brief(e)
-                    + "). It will be asked again with the same request id.", actor);
+            // A 5xx, 408, 409 or 429 does not prove that PayPal did not charge the card.
+            String reason = firstAttempt
+                    ? "PayPal answered with an error (" + brief(e) + "), so the charge may have gone through."
+                    : "Still unconfirmed: PayPal could not be reached on re-send (" + brief(e) + ").";
+            return recordInDoubt(t.id(), reason + " It will be asked again with the same request id.", actor);
         } catch (PayPalOutcomeUnknownException e) {
             log.warn("PayPal outcome unknown for top-up {} (request id {}): {}", t.id(), t.requestId(), e.getMessage());
             return recordInDoubt(t.id(), "No answer from PayPal (" + brief(e)
@@ -234,6 +283,14 @@ public class TopupService {
                 .findFirst()
                 .orElse(null);
         if (capture == null) {
+            if ("VOIDED".equals(order.status())) {
+                return recordNotCaptured(t.id(), "PayPal order " + order.orderId() + " was voided. Nothing was charged.",
+                        actor);
+            }
+            if ("APPROVED".equals(order.status()) && t.paypalCaptureId() == null) {
+                // The capture call never completed; re-sending captures the same order with its own request id.
+                return resend(t, actor);
+            }
             return recordInDoubt(t.id(), "PayPal order " + order.orderId() + " is " + order.status()
                     + " with no capture yet.", actor);
         }
@@ -261,9 +318,11 @@ public class TopupService {
                 return t;
             }
             if (!t.state().unresolved()) {
+                // Kept on the row so the close reads this order and raises an UNBOOKED_CAPTURE break.
+                topups.recordPaypalIds(id, r.orderId(), r.captureId());
                 log.error("PayPal reports capture {} for top-up {} which is already {}; leaving it for the close",
                         r.captureId(), id, t.state());
-                return t;
+                return topups.findById(id).orElseThrow();
             }
             long gross = r.amountCents();
             long fee = r.feeCents() == null ? 0 : r.feeCents();
@@ -360,7 +419,11 @@ public class TopupService {
 
     private static boolean isStale(Topup t) {
         return t.updatedAt() != null
-                && t.updatedAt().toInstant().isBefore(java.time.Instant.now().minusSeconds(STALE_CREATED_SECONDS));
+                && t.updatedAt().toInstant().isBefore(Instant.now().minusSeconds(STALE_CREATED_SECONDS));
+    }
+
+    private static boolean withinResendWindow(Topup t) {
+        return t.createdAt() == null || t.createdAt().toInstant().isAfter(Instant.now().minus(RESEND_WINDOW));
     }
 
     private static String declinedReason(PayPalDeclinedException e) {

@@ -72,15 +72,19 @@ public class Topups {
                 .list();
     }
 
-    /** IN_DOUBT top-ups, plus CREATED ones untouched for longer than staleSeconds (the app stopped mid-call). */
-    public List<UUID> idsToResolve(long staleSeconds) {
+    /**
+     * IN_DOUBT top-ups untouched for at least inDoubtSeconds (0 for all of them), plus CREATED ones
+     * untouched for longer than staleSeconds (the app stopped mid-call).
+     */
+    public List<UUID> idsToResolve(long staleSeconds, long inDoubtSeconds) {
         return jdbc.sql("""
                         select id from topups
-                         where state = 'IN_DOUBT'
+                         where (state = 'IN_DOUBT' and updated_at <= now() - :inDoubt * interval '1 second')
                             or (state = 'CREATED' and updated_at < now() - :stale * interval '1 second')
                          order by created_at
                         """)
                 .param("stale", staleSeconds)
+                .param("inDoubt", inDoubtSeconds)
                 .query((rs, n) -> rs.getObject("id", UUID.class))
                 .list();
     }

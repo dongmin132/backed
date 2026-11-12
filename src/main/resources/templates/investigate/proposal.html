@@ -1,22 +1,27 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: page('Proposal', ~{::main})}">
 <body>
-<main class="container" th:with="p=${page.proposal}, b=${page.brk}, out=${page.output}">
+<main class="container" th:with="p=${page.proposal}, b=${page.brk}, out=${page.output},
+                                  needsHuman=${page.proposal.treatment != null and page.proposal.treatment.name() == 'NEEDS_HUMAN'}">
     <link rel="stylesheet" th:href="@{/css/investigate.css}">
     <div class="page-head">
         <h1 th:text="${'Proposal #' + p.id}">Proposal #1</h1>
-        <span class="badge" th:classappend="${@fmt.tone(p.status)}" th:text="${@fmt.label(p.status)}">Pending approval</span>
-        <span class="badge" th:classappend="${@fmt.tone(p.treatment)}" th:if="${p.treatment != null}" th:text="${p.treatment.label()}">Goodwill</span>
+        <span class="badge" th:classappend="${needsHuman} ? 'watch' : ${@fmt.tone(p.status)}"
+              th:text="${needsHuman} ? 'Needs a human' : ${@fmt.label(p.status)}">Pending approval</span>
+        <span class="badge" th:classappend="${@fmt.tone(p.treatment)}" th:if="${p.treatment != null and !needsHuman}" th:text="${p.treatment.label()}">Goodwill</span>
         <a th:href="@{/proposals}" class="small">All proposals</a>
     </div>
     <div th:replace="~{layout/flash :: flash}"></div>
 
-    <p class="callout watch" th:unless="${aiConfigured}">AI investigator is not configured</p>
 
     <div class="callout" th:if="${page.viewerIsMaker and page.pending()}">
         You created this proposal, so you cannot approve it. A different user with the checker role must approve it.
     </div>
-    <div class="callout bad" th:if="${p.status.name() == 'REJECTED_BY_VALIDATOR'}">
+    <div class="callout watch" th:if="${needsHuman}">
+        <strong>The investigator asked for a person to decide.</strong> It found no treatment the evidence supports
+        well enough, so no entry was drafted. Read its reasoning below, then decide by hand or investigate again.
+    </div>
+    <div class="callout bad" th:if="${p.status.name() == 'REJECTED_BY_VALIDATOR' and !needsHuman}">
         <strong>Rejected by the validator.</strong> This proposal cannot be approved:
         <ul><li th:each="line : ${page.rejectionReasons()}" th:text="${line}"></li></ul>
     </div>
@@ -116,11 +121,11 @@
         <p class="muted" th:if="${#lists.isEmpty(page.messages)}">The customer sent no messages.</p>
         <ul class="messages">
             <li th:each="m : ${page.messages}">
-                <span class="muted small" th:text="${m.sentAt}"></span>
+                <span class="muted small" th:text="${@fmt.timeText(m.sentAt)}"></span>
                 <p><th:block th:each="s : ${m.body}"><mark th:if="${s.marked}" th:text="${s.text}"></mark><th:block th:unless="${s.marked}" th:text="${s.text}"></th:block></th:block></p>
             </li>
         </ul>
-        <details open>
+        <details>
             <summary>Evidence bundle as the investigator saw it</summary>
             <pre class="bundle"><th:block th:each="s : ${page.bundleSegments}"><mark th:if="${s.marked}" th:text="${s.text}"></mark><th:block th:unless="${s.marked}" th:text="${s.text}"></th:block></th:block></pre>
         </details>

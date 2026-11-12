@@ -6,7 +6,6 @@
     <h1>Proposals</h1>
     <div th:replace="~{layout/flash :: flash}"></div>
 
-    <p class="callout watch" th:unless="${aiConfigured}">AI investigator is not configured</p>
 
     <section class="card">
         <h2>Open breaks</h2>
@@ -51,9 +50,12 @@
                 <td th:text="${p.customerName}">Demo Customer A</td>
                 <td class="num" th:text="${@fmt.money(p.amountCents)}">$0.00</td>
                 <td><span class="badge" th:classappend="${@fmt.tone(p.treatment)}" th:text="${p.treatment != null ? p.treatment.label() : ''}">Goodwill</span></td>
-                <td><span class="badge" th:classappend="${@fmt.tone(p.status)}" th:text="${@fmt.label(p.status)}">Pending approval</span></td>
-                <td th:text="${p.createdBy}">maker</td>
-                <td th:text="${p.decidedBy}"></td>
+                <td th:with="needsHuman=${p.treatment != null and p.treatment.name() == 'NEEDS_HUMAN'}">
+                    <span class="badge" th:classappend="${needsHuman} ? 'watch' : ${@fmt.tone(p.status)}"
+                          th:text="${needsHuman} ? 'Needs a human' : ${@fmt.label(p.status)}">Pending approval</span>
+                </td>
+                <td th:text="${@fmt.actor(p.createdBy)}">maker</td>
+                <td th:text="${@fmt.actor(p.decidedBy)}"></td>
                 <td class="muted small" th:text="${@fmt.time(p.createdAt)}"></td>
             </tr>
             </tbody>

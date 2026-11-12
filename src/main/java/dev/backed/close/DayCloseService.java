@@ -224,7 +224,7 @@ public class DayCloseService implements CloseRunner {
                 new CloseSummary.Check("paypal_cash", "Ledger cash matches PayPal",
                         "Cash per PayPal's records", derived, "PAYPAL_CASH in the ledger", books.ledgerCash(),
                         unexplained != null && unexplained == 0,
-                        unexplained == null ? "PayPal could not be read: " + paypalError
+                        unexplained == null ? "Not compared, because PayPal could not be read."
                                 : unexplained == 0 ? "Nothing unexplained."
                                 : "Unexplained " + Money.format(unexplained)
                                 + " (ledger minus PayPal's captures net of fees, less refunds)."));
@@ -236,8 +236,8 @@ public class DayCloseService implements CloseRunner {
             notes.add(open.size() + (open.size() == 1 ? " break is" : " breaks are") + " not resolved.");
         }
         if (inDoubt > 0) {
-            notes.add(books.inDoubtTopups() + " top-up(s) and " + books.inDoubtLegs()
-                    + " cash-out leg(s) are still in doubt.");
+            notes.add(count(books.inDoubtTopups(), "top-up") + " and " + count(books.inDoubtLegs(), "cash-out leg")
+                    + " still in doubt or being sent to PayPal. Run the close again once they are settled.");
         }
 
         List<CloseSummary.BreakLine> lines = open.stream()
@@ -342,7 +342,13 @@ public class DayCloseService implements CloseRunner {
                     .query((rs, n) -> new long[]{rs.getLong(1), rs.getLong(2)})
                     .single();
             int inDoubtTopups = jdbc.sql("select count(*) from topups where state = 'IN_DOUBT'").query(Integer.class).single();
-            int inDoubtLegs = jdbc.sql("select count(*) from cashout_legs where state = 'IN_DOUBT'").query(Integer.class).single();
+            // A PENDING leg the relay holds right now may already be refunded at PayPal.
+            int inDoubtLegs = jdbc.sql("""
+                            select count(*) from cashout_legs
+                             where state = 'IN_DOUBT' or (state = 'PENDING' and claimed_until > now())
+                            """)
+                    .query(Integer.class)
+                    .single();
             long entryCount = jdbc.sql("select count(*) from journal_entries").query(Long.class).single();
             return new LedgerView(byId, byOrder, byCapture, legs, resolved, totals[0], totals[1],
                     ledger.unbalancedEntryIds(), balances.totalOwed(), ledger.balanceOf(Account.CUSTOMER_PREPAID),
@@ -521,6 +527,10 @@ public class DayCloseService implements CloseRunner {
             return s.toString();
         }
         return e.getClass().getSimpleName() + ": " + e.getMessage();
+    }
+
+    private static String count(int n, String noun) {
+        return n + " " + noun + (n == 1 ? "" : "s");
     }
 
     private static List<String> prepend(String first, List<String> rest) {

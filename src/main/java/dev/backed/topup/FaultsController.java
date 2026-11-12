@@ -21,6 +21,7 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -94,9 +95,9 @@ public class FaultsController {
         Topup topup;
         long cents;
         try {
-            topup = topups.findById(UUID.fromString(topupId))
+            topup = parseId(topupId).flatMap(topups::findById)
                     .filter(t -> t.state() == TopupState.CAPTURED && t.paypalCaptureId() != null)
-                    .orElseThrow(() -> new IllegalArgumentException("Pick a captured top-up."));
+                    .orElseThrow(() -> new IllegalArgumentException("Pick a captured top-up from the list."));
             cents = Money.parseCents(amount);
         } catch (IllegalArgumentException e) {
             redirect.addFlashAttribute("error", e.getMessage());
@@ -109,13 +110,21 @@ public class FaultsController {
             log.warn("Refund made outside the ledger by {}: refund {} of {} on capture {} (top-up {}), status {}",
                     principal.getName(), r.refundId(), Money.format(r.amountCents()), r.captureId(), topup.id(),
                     r.status());
-            redirect.addFlashAttribute("notice", "PayPal refund " + r.refundId() + " (" + r.status() + ") of "
+            redirect.addFlashAttribute("notice", "PayPal refund " + r.refundId() + " (" + r.status().toLowerCase() + ") of "
                     + Money.format(r.amountCents()) + " made on capture " + r.captureId() + " for "
                     + topup.customerName() + ". Nothing was written to the ledger; the next close should find it.");
         } catch (PayPalException e) {
             redirect.addFlashAttribute("error", "PayPal refused the outside refund: " + e.getMessage());
         }
         return "redirect:/admin/faults";
+    }
+
+    private static Optional<UUID> parseId(String text) {
+        try {
+            return Optional.of(UUID.fromString(text.trim()));
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
+        }
     }
 
     private PayPalGateway direct() {

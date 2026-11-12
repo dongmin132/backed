@@ -1,5 +1,6 @@
 package dev.backed.topup;
 
+import dev.backed.paypal.FakePayPalGateway;
 import dev.backed.paypal.FaultSwitch.Fault;
 import dev.backed.support.AbstractDbTest;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -43,12 +45,33 @@ class TopupWebTest extends AbstractDbTest {
     void lostResponseIsReportedAsProcessingAndASecondTopUpIsRefused() throws Exception {
         faults.arm(Fault.DROP_NEXT_CAPTURE_RESPONSE);
         mvc.perform(post("/c/" + TOKEN_A + "/topup").param("amount", "25").with(csrf()))
-                .andExpect(flash().attribute("notice", containsString("Processing: PayPal has not confirmed")));
+                .andExpect(flash().attribute("pending", containsString("Processing: PayPal has not confirmed")));
         assertThat(balanceOf(customerA().id())).isZero();
 
         mvc.perform(post("/c/" + TOKEN_A + "/topup").param("amount", "10").with(csrf()))
                 .andExpect(flash().attribute("error", containsString("still waiting for PayPal")));
         assertThat(fakePayPal.captureCalls()).hasSize(1);
+    }
+
+    @Test
+    void customerPageShowsCustomerWordsAndNoStaffDetail() throws Exception {
+        fakePayPal.failNextCapture(FakePayPalGateway.Failure.UNREACHABLE, FakePayPalGateway.Timing.BEFORE_EFFECT);
+        mvc.perform(post("/c/" + TOKEN_A + "/topup").param("amount", "12").with(csrf()))
+                .andExpect(flash().attribute("error", allOf(containsString("Nothing was charged"),
+                        not(containsString("Fake PayPal")))));
+        faults.arm(Fault.DROP_NEXT_CAPTURE_RESPONSE);
+        mvc.perform(post("/c/" + TOKEN_A + "/topup").param("amount", "30").with(csrf()));
+        Topup inDoubt = topups.findUnresolvedForCustomer(customerA().id()).orElseThrow();
+
+        mvc.perform(get("/c/" + TOKEN_A))
+                .andExpect(status().isOk())
+                .andExpect(content().string(allOf(containsString("Not charged"), containsString("Waiting for PayPal"))))
+                .andExpect(content().string(not(containsString("Fake PayPal"))))
+                .andExpect(content().string(not(containsString("Injected fault"))))
+                .andExpect(content().string(not(containsString(inDoubt.requestId()))));
+        mvc.perform(get("/topups").with(user("checker").roles("CHECKER")))
+                .andExpect(content().string(containsString("Injected fault")))
+                .andExpect(content().string(not(containsString("/resolve"))));
     }
 
     @Test

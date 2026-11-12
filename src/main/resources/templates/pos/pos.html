@@ -39,7 +39,7 @@
                 <td th:text="${@fmt.time(s.createdAt)}">2026-01-01 10:00:00 UTC</td>
                 <td th:text="${s.customerName}">Demo Customer A</td>
                 <td th:text="${s.memo}">Coffee</td>
-                <td class="muted" th:text="${s.createdBy}">clerk</td>
+                <td class="muted" th:text="${@fmt.actor(s.createdBy)}">clerk</td>
                 <td><span class="badge" th:classappend="${@fmt.tone(s.state)}" th:text="${@fmt.label(s.state)}">Done</span></td>
                 <td class="num" th:text="${@fmt.money(s.amountCents)}">$0.00</td>
             </tr>

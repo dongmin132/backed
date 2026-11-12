@@ -1,10 +1,13 @@
 package dev.backed.close;
 
 import dev.backed.config.Actors;
+import dev.backed.config.Roles;
 import dev.backed.customer.Customer;
 import dev.backed.customer.Customers;
+import dev.backed.investigate.ProposalRepository;
 import dev.backed.ledger.BusinessDay;
 import dev.backed.ledger.Money;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,18 +36,20 @@ public class CloseController {
     private final BreakRepository breaks;
     private final Customers customers;
     private final BusinessDay businessDay;
+    private final ProposalRepository proposals;
 
     public CloseController(DayCloseService close, CloseRuns runs, BreakRepository breaks, Customers customers,
-                           BusinessDay businessDay) {
+                           BusinessDay businessDay, ProposalRepository proposals) {
         this.close = close;
         this.runs = runs;
         this.breaks = breaks;
         this.customers = customers;
         this.businessDay = businessDay;
+        this.proposals = proposals;
     }
 
     @GetMapping
-    public String page(Model model) {
+    public String page(Model model, Authentication auth) {
         LocalDate today = businessDay.current();
         CloseRuns.CloseRun latest = runs.latestFor(today).orElse(null);
         CloseSummary summary = latest == null ? null : DayCloseService.readSummary(latest.summaryJson());
@@ -60,24 +65,32 @@ public class CloseController {
         model.addAttribute("openBreaks", open);
         model.addAttribute("history", runs.recent(20));
         model.addAttribute("canAdvance", latest != null && latest.status() == CloseStatus.CLOSED);
+        model.addAttribute("isMaker", auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> ("ROLE_" + Roles.MAKER).equals(a.getAuthority())));
+        model.addAttribute("pendingProposals", proposals.pendingByBreak());
         return "close/close";
     }
 
     @PostMapping("/run")
     public String run(Principal principal, RedirectAttributes redirect) {
         CloseOutcome outcome = close.runClose(Actors.of(principal));
-        if (outcome.status() == CloseStatus.CLOSED) {
-            redirect.addFlashAttribute("notice", "The books for " + outcome.businessDate() + " are closed. Nothing is unexplained.");
-        } else if (!outcome.notes().isEmpty() && outcome.notes().getFirst().startsWith("PayPal could not be read")) {
-            redirect.addFlashAttribute("error", "The day is broken. " + outcome.notes().getFirst());
-        } else {
-            StringBuilder s = new StringBuilder("The day is broken: ");
-            s.append(outcome.openBreakIds().size()).append(" open break(s), ");
-            s.append(outcome.inDoubtCount()).append(" in doubt, unexplained ");
-            s.append(Money.format(outcome.unexplainedCents())).append('.');
-            redirect.addFlashAttribute("error", s.toString());
-        }
+        redirect.addFlashAttribute(outcome.status() == CloseStatus.CLOSED ? "notice" : "error", describe(outcome));
         return "redirect:/close";
+    }
+
+    /** One line for a close result, as the flash after a run or an approval shows it. */
+    public static String describe(CloseOutcome outcome) {
+        if (outcome.status() == CloseStatus.CLOSED) {
+            return "The books for " + outcome.businessDate() + " are closed. Nothing is unexplained.";
+        }
+        if (!outcome.notes().isEmpty() && outcome.notes().getFirst().startsWith("PayPal could not be read")) {
+            return "The day is broken: PayPal could not be read, so nothing was compared. The reason is below.";
+        }
+        int open = outcome.openBreakIds().size();
+        int inDoubt = outcome.inDoubtCount();
+        return "The day is broken: " + open + (open == 1 ? " open break, " : " open breaks, ")
+                + inDoubt + (inDoubt == 1 ? " item" : " items") + " in doubt or being sent, unexplained "
+                + Money.format(outcome.unexplainedCents()) + ".";
     }
 
     @PostMapping("/advance")

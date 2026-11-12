@@ -11,10 +11,10 @@
             <span class="stat-note" th:if="${owedCents != prepaidControlCents}">
                 <span class="badge bad">Mismatch</span> ledger says <span class="num" th:text="${@fmt.money(prepaidControlCents)}">$0.00</span>
             </span>
-            <span class="stat-note muted" th:unless="${owedCents != prepaidControlCents}">Matches CUSTOMER_PREPAID</span>
+            <span class="stat-note muted" th:unless="${owedCents != prepaidControlCents}">Matches the ledger</span>
         </div>
         <div class="stat">
-            <span class="stat-label">Ledger PAYPAL_CASH</span>
+            <span class="stat-label">Held at PayPal, per the ledger</span>
             <span class="stat-value num" th:text="${@fmt.money(paypalCashCents)}">$0.00</span>
             <span class="stat-note muted">Capture net amounts minus refunds</span>
         </div>
@@ -27,17 +27,17 @@
                 </span>
                 <span class="stat-note muted">
                     <span th:text="${@fmt.date(lastClose.businessDate)}">2026-01-01</span>
-                    by <span th:text="${lastClose.runBy}">maker</span>
+                    by <span th:text="${@fmt.actor(lastClose.runBy)}">maker</span>
                 </span>
             </th:block>
         </div>
         <div class="stat">
             <span class="stat-label">Needs attention</span>
             <span class="stat-value">
-                <span class="badge" th:classappend="${openBreaks > 0} ? 'bad' : 'ok'" th:text="${openBreaks + ' open breaks'}">0 open breaks</span>
+                <span class="badge" th:classappend="${openBreaks > 0} ? 'bad' : 'ok'" th:text="${@fmt.count(openBreaks, 'open break', 'open breaks')}">0 open breaks</span>
             </span>
             <span class="stat-note">
-                <span class="badge" th:classappend="${inDoubtTopups > 0} ? 'watch' : 'ok'" th:text="${inDoubtTopups + ' top-ups in doubt'}">0 top-ups in doubt</span>
+                <span class="badge" th:classappend="${inDoubtTopups > 0} ? 'watch' : 'ok'" th:text="${@fmt.count(inDoubtTopups, 'top-up in doubt', 'top-ups in doubt')}">0 top-ups in doubt</span>
             </span>
         </div>
     </section>

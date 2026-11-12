@@ -106,7 +106,7 @@ class DemoStoryTest extends AbstractDbTest {
                         .with(user("maker").roles("MAKER")).with(csrf()))
                 .andExpect(redirectedUrl("/admin/faults"));
         mvc.perform(post(page + "/topup").param("amount", "30.00").with(csrf()))
-                .andExpect(flash().attribute("notice", containsString("Processing: PayPal has not confirmed")));
+                .andExpect(flash().attribute("pending", containsString("Processing: PayPal has not confirmed")));
         Topup lost = topups.recent(1).getFirst();
         assertThat(lost.state()).isEqualTo(TopupState.IN_DOUBT);
         assertThat(balanceOf(a)).isEqualTo(5_000);

@@ -3,6 +3,8 @@ package dev.backed.investigate;
 import dev.backed.close.Break;
 import dev.backed.close.BreakKind;
 import dev.backed.close.BreakRepository;
+import dev.backed.close.CloseController;
+import dev.backed.close.CloseStatus;
 import dev.backed.config.Actors;
 import dev.backed.config.Roles;
 import dev.backed.customer.Customer;
@@ -65,7 +67,6 @@ public class ProposalController {
 
     @PostMapping("/breaks/{id}/investigate")
     public String investigate(@PathVariable long id, Authentication auth, RedirectAttributes redirect) {
-        // SecurityConfig has no rule for /breaks/**, so the maker role is checked here.
         if (!hasRole(auth, Roles.MAKER)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only a maker can request an investigation");
         }
@@ -84,11 +85,16 @@ public class ProposalController {
         requireProposal(id);
         try {
             ApprovalResult r = service.approve(id, Actors.of(auth));
-            String close = r.closeOutcome() != null
-                    ? " Close re-run: " + r.closeOutcome().status().name().toLowerCase() + "."
-                    : " " + r.closeNote();
-            redirect.addFlashAttribute("notice", "Approved. Journal entry #" + r.entryId() + " posted for "
-                    + r.entryDate() + "." + close);
+            String posted = "Approved. Journal entry #" + r.entryId() + " posted for " + r.entryDate() + ". ";
+            if (r.closeOutcome() == null) {
+                redirect.addFlashAttribute("pending", posted + r.closeNote());
+            } else if (r.closeOutcome().status() == CloseStatus.CLOSED) {
+                redirect.addFlashAttribute("notice", posted + "The close ran again: "
+                        + CloseController.describe(r.closeOutcome()));
+            } else {
+                redirect.addFlashAttribute("pending", posted + "The close ran again and is still broken: "
+                        + CloseController.describe(r.closeOutcome()).replace("The day is broken: ", ""));
+            }
         } catch (InvestigationException e) {
             redirect.addFlashAttribute("error", e.getMessage());
         }
